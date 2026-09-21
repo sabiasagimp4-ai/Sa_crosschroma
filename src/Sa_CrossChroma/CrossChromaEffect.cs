@@ -12,10 +12,10 @@ namespace Sa_CrossChroma;
 /// RGBを分離し、各チャンネルを別チャンネルの情報で変形して再合成する映像エフェクト。
 /// 普通の色収差が「RGBを別々にずらす」のに対して、こちらは色同士が互いを変形させる。
 /// </summary>
-[VideoEffect("クロスクロマ", ["加工"], ["crosschroma", "クロスクロマ", "色収差", "chromatic", "aberration", "RGB"])]
+[VideoEffect("Sa_crosschroma", ["加工"], ["Sa_crosschroma", "sa_crosschroma", "crosschroma", "クロスクロマ", "色収差", "chromatic", "aberration", "RGB"])]
 public class CrossChromaEffect : VideoEffectBase
 {
-    public override string Label => "クロスクロマ";
+    public override string Label => "Sa_crosschroma";
 
     /// <summary>反復回数の上限。増やすほどパス数がそのまま増えるので、常識的な範囲で止めておく。</summary>
     public const int MaxIterations = 8;

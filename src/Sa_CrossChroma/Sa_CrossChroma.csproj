@@ -6,11 +6,11 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<UseWPF>true</UseWPF>
-		<AssemblyName>Sa_CrossChroma</AssemblyName>
+		<AssemblyName>Sa_crosschroma</AssemblyName>
 		<RootNamespace>Sa_CrossChroma</RootNamespace>
-		<Product>Sa_CrossChroma</Product>
+		<Product>Sa_crosschroma</Product>
 		<Description>RGBを互いの輪郭で変形させる色収差エフェクト</Description>
-		<Version>1.0.0</Version>
+		<Version>1.0.1</Version>
 
 		<!-- Pdb内にソースコードのフルパスを含めない -->
 		<RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RepoRoot>

@@ -61,17 +61,17 @@ jobs:
       - name: Package as .ymme
         shell: pwsh
         run: |
-          $dll = Get-ChildItem 'src\Sa_CrossChroma\bin\Release' -Recurse -Filter 'Sa_CrossChroma.dll' | Select-Object -First 1
-          if (-not $dll) { throw 'The build did not produce Sa_CrossChroma.dll' }
+          $dll = Get-ChildItem 'src\Sa_CrossChroma\bin\Release' -Recurse -Filter 'Sa_crosschroma.dll' | Select-Object -First 1
+          if (-not $dll) { throw 'The build did not produce Sa_crosschroma.dll' }
           New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item $dll.FullName 'dist\Sa_CrossChroma.dll'
-          Compress-Archive -Path 'dist\Sa_CrossChroma.dll' -DestinationPath 'Sa_CrossChroma.ymme' -Force
-          Get-FileHash 'Sa_CrossChroma.ymme' -Algorithm SHA256 | Format-List
+          Copy-Item $dll.FullName 'dist\Sa_crosschroma.dll'
+          Compress-Archive -Path 'dist\Sa_crosschroma.dll' -DestinationPath 'Sa_crosschroma.ymme' -Force
+          Get-FileHash 'Sa_crosschroma.ymme' -Algorithm SHA256 | Format-List
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Sa_CrossChroma
-          path: Sa_CrossChroma.ymme
+          name: Sa_crosschroma
+          path: Sa_crosschroma.ymme
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -89,8 +89,8 @@ jobs:
 
           gh release view $tag --repo $env:REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag 'Sa_CrossChroma.ymme' --repo $env:REPOSITORY --clobber
+            gh release upload $tag 'Sa_crosschroma.ymme' --repo $env:REPOSITORY --clobber
           } else {
-            gh release create $tag 'Sa_CrossChroma.ymme' --repo $env:REPOSITORY --target $env:COMMIT_SHA --title "Sa_CrossChroma $tag" --generate-notes
+            gh release create $tag 'Sa_crosschroma.ymme' --repo $env:REPOSITORY --target $env:COMMIT_SHA --title "Sa_crosschroma $tag" --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw 'Publishing the release failed' }

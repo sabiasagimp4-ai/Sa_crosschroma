@@ -1,4 +1,4 @@
-# Sa_CrossChroma
+# Sa_crosschroma
 
 ゆっくりMovieMaker4（YMM4）用の映像エフェクトプラグインです。
 
@@ -25,10 +25,10 @@ RGBチャンネルを別々にずらす一般的な色収差とは異なり、�
 
 ## インストール
 
-[Releaseページ](https://github.com/sabiasagimp4-ai/Sa_crosschroma/releases/latest)から `Sa_CrossChroma.ymme` をダウンロードし、YMM4で開いてください。
+[Releaseページ](https://github.com/sabiasagimp4-ai/Sa_crosschroma/releases/latest)から `Sa_crosschroma.ymme` をダウンロードし、YMM4で開いてください。
 
 映像アイテムの
 
-`エフェクトを追加` → `加工` → `クロスクロマ`
+`エフェクトを追加` → `加工` → `Sa_crosschroma`
 
 から使用できます。

@@ -87,6 +87,7 @@ docs/
   parameters.md                   パラメーターを振った実験結果
   internals.md                    このファイル
   samples/                        READMEに貼っているサンプル画像
+    full/                         スイープの各設定を等倍(900x506)で書き出したもの
 ```
 
 ## 開発
@@ -101,8 +102,8 @@ pip install numpy pillow
 # テスト（アルゴリズムの振る舞い + 3実装の整合性チェック）
 python3 tools/reference/test_crosschroma.py
 
-# サンプル画像の生成
-python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples
+# サンプル画像の生成 (--full を付けると等倍の全画面も出る。10分ほどかかる)
+python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples [--full]
 ```
 
 テストは振る舞いだけでなく、**HLSLの定数バッファ / C#の構造体 / プロパティID / Pythonの定数**が

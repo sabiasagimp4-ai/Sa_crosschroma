@@ -3,8 +3,16 @@
 各パラメーターを1項目ずつ振って測った結果。使いかたの目安は
 [README](../README.md#効かせかたの目安) に要約がある。
 
-1項目ずつ振って、同じ場所（机のフレーム周り）を切り出して並べたもの。
-すべて `python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples` で再生成できる。
+> **並べた比較画像は、机のフレーム周り 300x200px を切り出して2倍に拡大したもの。**
+> 細部を見るためにそうしているので、ザラつきは実際より目立って見える。
+> 実際に使ったときの見え方は、各項目に付けた **等倍** のリンクから見てほしい
+> （切り抜きも拡大もしていない900x506の全画面）。
+
+再生成は以下（`--full` を付けると等倍の全画面も書き出す。10分ほどかかる）。
+
+```bash
+python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples --full
+```
 
 表の見かたは2つ。
 
@@ -29,6 +37,8 @@
 
 ![強度](samples/sweep-intensity.jpg)
 
+等倍（全画面）: [8px](samples/full/sweep-intensity-8px.jpg) / [24px](samples/full/sweep-intensity-24px.jpg) / [60px](samples/full/sweep-intensity-60px.jpg) / [120px](samples/full/sweep-intensity-120px.jpg)
+
 1歩あたりを3pxに固定したまま強度だけ伸ばした。
 
 | 強度 | ステップ数 | ザラつき | 平均変化 |
@@ -49,6 +59,8 @@
 ## 1歩あたりの移動量 — 荒れるのはここ
 
 ![1歩あたりの移動量](samples/sweep-stepsize.jpg)
+
+等倍（全画面）: [30px-step](samples/full/sweep-stepsize-30px-step.jpg) / [15px-step](samples/full/sweep-stepsize-15px-step.jpg) / [7.5px-step](samples/full/sweep-stepsize-7.5px-step.jpg) / [3px-step](samples/full/sweep-stepsize-3px-step.jpg)
 
 強度を120pxに固定して、ステップ数だけを変えた（画像はこのうち4段階）。
 
@@ -82,6 +94,8 @@
 
 ![角度](samples/sweep-angle.jpg)
 
+等倍（全画面）: [0deg](samples/full/sweep-angle-0deg.jpg) / [45deg](samples/full/sweep-angle-45deg.jpg) / [90deg](samples/full/sweep-angle-90deg.jpg) / [135deg](samples/full/sweep-angle-135deg.jpg)
+
 | 角度 | 平均変化 | 見え方 |
 |---|---|---|
 | 0° | 9.4 | 輪郭を横切る。普通の色収差に近い縁取り |
@@ -98,6 +112,8 @@
 ## 検出半径 — 性格そのものが変わる
 
 ![検出半径](samples/sweep-radius.jpg)
+
+等倍（全画面）: [1px](samples/full/sweep-radius-1px.jpg) / [2px](samples/full/sweep-radius-2px.jpg) / [4px](samples/full/sweep-radius-4px.jpg) / [8px](samples/full/sweep-radius-8px.jpg)
 
 | 検出半径 | 平均変化 | 見え方 |
 |---|---|---|
@@ -116,9 +132,13 @@
 
 ![感度](samples/sweep-gain.jpg)
 
+等倍（全画面）: [50](samples/full/sweep-gain-50.jpg) / [150](samples/full/sweep-gain-150.jpg) / [300](samples/full/sweep-gain-300.jpg) / [600](samples/full/sweep-gain-600.jpg)
+
 感度600%のまま、ガンマだけを振ったもの。平坦な部分の動きだけが消えていく。
 
 ![ガンマ](samples/sweep-gamma.jpg)
+
+等倍（全画面）: [0.4](samples/full/sweep-gamma-0.4.jpg) / [1.0](samples/full/sweep-gamma-1.0.jpg) / [2.5](samples/full/sweep-gamma-2.5.jpg) / [6.0](samples/full/sweep-gamma-6.0.jpg)
 
 強度24px / ステップ数8での組み合わせ。
 
@@ -153,6 +173,8 @@
 
 ![反復回数](samples/sweep-iterations.jpg)
 
+等倍（全画面）: [1](samples/full/sweep-iterations-1.jpg) / [2](samples/full/sweep-iterations-2.jpg) / [4](samples/full/sweep-iterations-4.jpg) / [8](samples/full/sweep-iterations-8.jpg)
+
 これが今回いちばん意外だった結果。**合計移動量96pxを、4通りの分けかたで作って比べた。**
 4つとも1歩あたり3px・総ステップ数32で揃えてある。違うのは「何パスに分けたか」だけ。
 
@@ -186,6 +208,8 @@
 
 ![変調](samples/sweep-modulation.jpg)
 
+等倍（全画面）: [none](samples/full/sweep-modulation-none.jpg) / [blur](samples/full/sweep-modulation-blur.jpg) / [dilate](samples/full/sweep-modulation-dilate.jpg) / [erode](samples/full/sweep-modulation-erode.jpg)
+
 強度24px / 半径4px。
 
 | 設定 | 平均変化 | 見え方 |
@@ -204,6 +228,8 @@
 ## 適用量 — 形を変えずに強さだけ落とす
 
 ![適用量](samples/sweep-mix.jpg)
+
+等倍（全画面）: [25%](samples/full/sweep-mix-25.jpg) / [50%](samples/full/sweep-mix-50.jpg) / [75%](samples/full/sweep-mix-75.jpg) / [100%](samples/full/sweep-mix-100.jpg)
 
 最後に元画像と混ぜるだけなので、**流れの形はそのままで濃さだけが変わる**。
 平坦な部分のザラつきも同じ比率で薄まるので、

@@ -627,6 +627,52 @@ def test_iterations_is_handled_outside_the_shader():
     assert "effectOutputs[i + 1]" in PROCESSOR_CS
 
 
+def test_sweep_crop_matches_a_full_render():
+    """スイープ画像の切り出しレンダーが、全画面レンダーと同じ絵になること。
+
+    READMEのパラメーター実験は render_crop() で一部だけを計算している。
+    余白の取りかたを間違えると、比較画像だけが実機と食い違うことになる。
+    """
+    import render_samples as rs
+    from dataclasses import replace
+
+    # ランダムノイズは使わない。輪郭が画素ごとにばらばらだと歩く経路が
+    # 初期値のわずかな差で大きく散るので、余白の妥当性とは別の話になる。
+    # 実際の絵と同じく、なめらかな濃淡と太い輪郭を持つ画像で見る。
+    height, width = 90, 120
+    ys, xs = np.mgrid[0:height, 0:width].astype(np.float32)
+    source = np.zeros((height, width, 4), dtype=np.float32)
+    source[..., 0] = 0.5 + 0.4 * np.sin(xs / 9.0) * np.cos(ys / 11.0)
+    source[..., 1] = np.clip(np.sqrt((xs - 55) ** 2 + (ys - 45) ** 2) / 40.0, 0.0, 1.0)
+    source[..., 2] = 0.25
+    source[:, 30:38, 2] = 0.9          # 縦の帯
+    source[50:58, :, 2] = 0.9          # 横の帯
+    source[..., 3] = 1.0
+
+    box = (40, 30, 80, 60)
+    left, top, right, bottom = box
+
+    for overrides in ({}, {"edge_radius": 4.0},
+                      {"blur_strength": 1.0, "morph_strength": -0.5, "filter_radius": 3.0},
+                      {"intensity": 8, "iterations": 3}):
+        params = replace(rs.SWEEP_BASE, **overrides)
+        full = cc.apply(source, params)[top:bottom, left:right, :3]
+        cropped = np.asarray(rs.render_crop(source, params, box), dtype=np.float32) / 255.0
+        # 8bitに落としてから比べる(書き出すのは画像なので、そこで一致していればよい)
+        quantized = np.round(np.clip(full, 0.0, 1.0) * 255.0) / 255.0
+        assert np.abs(quantized - cropped).max() < 1.5 / 255.0, \
+            (overrides, float(np.abs(quantized - cropped).max()))
+
+
+def test_sweep_labels_are_ascii():
+    """比較シートのラベルは、日本語フォントの無い環境でも豆腐にならないこと。"""
+    import render_samples as rs
+
+    labels = [label for item in rs.SWEEPS for label, _ in item["variants"]]
+    for label in labels:
+        assert label.isascii(), label
+
+
 # ---------------------------------------------------------------------------
 
 def main() -> int:

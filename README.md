@@ -8,7 +8,9 @@ RGBを分離し、各チャンネルを **別チャンネルの輪郭** で変�
 普通の色収差が「RGBを別々にずらす」だけなのに対して、これは **色同士が互いを変形させる色収差**。
 Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方はRが決める、という循環になっている。
 
-![before / after](docs/samples/comparison.jpg)
+![before / after](docs/samples/comparison-full.jpg)
+
+*上から、元画像 / 控えめな設定（01-flow）/ 強めの設定（05-soft）。すべて等倍。*
 
 ## できること
 
@@ -23,8 +25,8 @@ Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方
 
 ## サンプル
 
-テスト画像（`docs/samples/00-source.jpg`）に適用した結果。
-すべて `python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples` で生成している。
+テスト画像（`docs/samples/00-source.jpg`）に適用した結果。**すべて等倍**（900x506、切り抜きなし）。
+生成は `python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples`。
 
 | | |
 |---|---|
@@ -33,6 +35,8 @@ Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方
 | **04-blur** — 他チャンネルの明るさでぼかす<br>`強度12px / ぼかし100% / 半径3px`<br>![](docs/samples/04-blur.jpg) | **05-soft** — 広い濃淡に反応させる<br>`強度40px / 検出半径6px / ガンマ0.6`<br>![](docs/samples/05-soft.jpg) |
 | **06-subtle** — 実用的な控えめの設定<br>`強度6px / 感度200% / 適用量60%`<br>![](docs/samples/06-subtle.jpg) | **07-full** — 変位・ぼかし・収縮を全部使う<br>`強度28px / 角度120° / 逆回転 / 収縮-60%`<br>![](docs/samples/07-full.jpg) |
 | **08-iterate** — 全体を繰り返して変形を重ねる<br>`強度10px / ステップ数4 / 反復回数3`<br>![](docs/samples/08-iterate.jpg) | |
+
+細部を見たいときは[拡大した比較](docs/samples/comparison.jpg)（机のフレーム周りを2倍）。
 
 ## 効かせかたの目安
 
@@ -146,5 +150,4 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
 
 未設定。公開する場合は、リポジトリにライセンスファイルを追加すること。
 
-`docs/samples/` の画像は、動作確認用に提供されたテスト画像とその加工結果。
-リポジトリを公開する場合は、元画像の権利を確認して差し替えること。
+`docs/samples/` の画像は、フリー素材のテスト画像とその加工結果。

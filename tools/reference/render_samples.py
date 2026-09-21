@@ -1,6 +1,9 @@
 """テスト画像にプリセットを適用して docs/samples/ に書き出す。
 
-  python3 tools/reference/render_samples.py <入力画像> [出力先]
+  python3 tools/reference/render_samples.py <入力画像> [出力先] [--full]
+
+--full を付けると、スイープの各設定を切り抜きも拡大もせずそのまま
+<出力先>/full/ にも書き出す(10分ほどかかる)。
 
 CPUリファレンス実装(crosschroma.py)を使うので、YMM4上のシェーダーと
 同じ結果になる。README用のサンプル画像はこれで作っている。
@@ -120,66 +123,66 @@ SWEEPS = [
     sweep(
         "sweep-intensity", "強度",
         "1歩あたりを3pxに固定したまま強度だけ伸ばす（ステップ数も一緒に上げている）",
-        [("intensity 8px  /  steps 4", dict(intensity=8, steps=4)),
-         ("intensity 24px  /  steps 8", dict(intensity=24, steps=8)),
-         ("intensity 60px  /  steps 20", dict(intensity=60, steps=20)),
-         ("intensity 120px  /  steps 40", dict(intensity=120, steps=40))],
+        [("intensity 8px  /  steps 4", "8px", dict(intensity=8, steps=4)),
+         ("intensity 24px  /  steps 8", "24px", dict(intensity=24, steps=8)),
+         ("intensity 60px  /  steps 20", "60px", dict(intensity=60, steps=20)),
+         ("intensity 120px  /  steps 40", "120px", dict(intensity=120, steps=40))],
     ),
     sweep(
         "sweep-stepsize", "1歩あたりの移動量",
         "強度120pxのままステップ数だけを変える（1歩あたり30/15/7.5/3px）",
-        [("steps 4  ->  30px per step", dict(intensity=120, steps=4)),
-         ("steps 8  ->  15px per step", dict(intensity=120, steps=8)),
-         ("steps 16  ->  7.5px per step", dict(intensity=120, steps=16)),
-         ("steps 40  ->  3px per step", dict(intensity=120, steps=40))],
+        [("steps 4  ->  30px per step", "30px-step", dict(intensity=120, steps=4)),
+         ("steps 8  ->  15px per step", "15px-step", dict(intensity=120, steps=8)),
+         ("steps 16  ->  7.5px per step", "7.5px-step", dict(intensity=120, steps=16)),
+         ("steps 40  ->  3px per step", "3px-step", dict(intensity=120, steps=40))],
     ),
     sweep(
         "sweep-angle", "角度",
         "勾配をどれだけ回して進むか。0°で輪郭を横切り、90°で輪郭に沿う",
-        [("angle 0 deg  (across the edge)", dict(angle_deg=0)),
-         ("angle 45 deg", dict(angle_deg=45)),
-         ("angle 90 deg  (along the edge)", dict(angle_deg=90)),
-         ("angle 135 deg", dict(angle_deg=135))],
+        [("angle 0 deg  (across the edge)", "0deg", dict(angle_deg=0)),
+         ("angle 45 deg", "45deg", dict(angle_deg=45)),
+         ("angle 90 deg  (along the edge)", "90deg", dict(angle_deg=90)),
+         ("angle 135 deg", "135deg", dict(angle_deg=135))],
     ),
     sweep(
         "sweep-radius", "検出半径",
         "輪郭をどれだけ広く見るか。広げるほど線画ではなく面の陰影を拾う",
-        [("edge radius 1px", dict(edge_radius=1.0)),
-         ("edge radius 2px", dict(edge_radius=2.0)),
-         ("edge radius 4px", dict(edge_radius=4.0)),
-         ("edge radius 8px", dict(edge_radius=8.0))],
+        [("edge radius 1px", "1px", dict(edge_radius=1.0)),
+         ("edge radius 2px", "2px", dict(edge_radius=2.0)),
+         ("edge radius 4px", "4px", dict(edge_radius=4.0)),
+         ("edge radius 8px", "8px", dict(edge_radius=8.0))],
     ),
     sweep(
         "sweep-gain", "感度",
         "どれだけ弱い輪郭まで拾うか。上げるほど平坦な部分まで動きだす",
-        [("gain 50%", dict(edge_gain=0.5)),
-         ("gain 150%", dict(edge_gain=1.5)),
-         ("gain 300%", dict(edge_gain=3.0)),
-         ("gain 600%", dict(edge_gain=6.0))],
+        [("gain 50%", "50", dict(edge_gain=0.5)),
+         ("gain 150%", "150", dict(edge_gain=1.5)),
+         ("gain 300%", "300", dict(edge_gain=3.0)),
+         ("gain 600%", "600", dict(edge_gain=6.0))],
     ),
     sweep(
         "sweep-gamma", "ガンマ",
         "感度600%のまま、弱い輪郭の扱いだけをガンマで変える",
-        [("gamma 0.4  (gain 600%)", dict(edge_gain=6.0, edge_gamma=0.4)),
-         ("gamma 1.0", dict(edge_gain=6.0, edge_gamma=1.0)),
-         ("gamma 2.5", dict(edge_gain=6.0, edge_gamma=2.5)),
-         ("gamma 6.0", dict(edge_gain=6.0, edge_gamma=6.0))],
+        [("gamma 0.4  (gain 600%)", "0.4", dict(edge_gain=6.0, edge_gamma=0.4)),
+         ("gamma 1.0", "1.0", dict(edge_gain=6.0, edge_gamma=1.0)),
+         ("gamma 2.5", "2.5", dict(edge_gain=6.0, edge_gamma=2.5)),
+         ("gamma 6.0", "6.0", dict(edge_gain=6.0, edge_gamma=6.0))],
     ),
     sweep(
         "sweep-iterations", "反復回数",
         "1回あたり強度12pxに抑えて、エフェクト全体を繰り返す",
-        [("1 iteration  (12px total)", dict(intensity=12, iterations=1)),
-         ("2 iterations  (24px total)", dict(intensity=12, iterations=2)),
-         ("4 iterations  (48px total)", dict(intensity=12, iterations=4)),
-         ("8 iterations  (96px total)", dict(intensity=12, iterations=8))],
+        [("1 iteration  (12px total)", "1", dict(intensity=12, iterations=1)),
+         ("2 iterations  (24px total)", "2", dict(intensity=12, iterations=2)),
+         ("4 iterations  (48px total)", "4", dict(intensity=12, iterations=4)),
+         ("8 iterations  (96px total)", "8", dict(intensity=12, iterations=8))],
     ),
     sweep(
         "sweep-modulation", "変調",
         "他チャンネルの明るさでぼかし / 膨張 / 収縮をかける（半径4px）",
-        [("no modulation", dict()),
-         ("blur 100%", dict(blur_strength=1.0, filter_radius=4.0)),
-         ("dilate 100%", dict(morph_strength=1.0, filter_radius=4.0)),
-         ("erode -100%", dict(morph_strength=-1.0, filter_radius=4.0))],
+        [("no modulation", "none", dict()),
+         ("blur 100%", "blur", dict(blur_strength=1.0, filter_radius=4.0)),
+         ("dilate 100%", "dilate", dict(morph_strength=1.0, filter_radius=4.0)),
+         ("erode -100%", "erode", dict(morph_strength=-1.0, filter_radius=4.0))],
     ),
 ]
 
@@ -230,7 +233,7 @@ def label_font(size: int = 17):
 
 
 def make_sheet(tiles, path: pathlib.Path, scale: int = 2, label_height: int = 26,
-               crop=CROP_BOX) -> None:
+               crop=CROP_BOX, columns: int = 2) -> None:
     """(ラベル, PIL画像) を2列に並べたシートを書き出す。
 
     crop に矩形を渡すとその範囲を切り出す。None なら渡された画像をそのまま使う
@@ -245,8 +248,8 @@ def make_sheet(tiles, path: pathlib.Path, scale: int = 2, label_height: int = 26
         left, top, right, bottom = crop
         tile_w = (right - left) * scale
         tile_h = (bottom - top) * scale + label_height
-    rows = (len(tiles) + 1) // 2
-    sheet = Image.new("RGB", (tile_w * 2, tile_h * rows), (24, 24, 24))
+    rows = (len(tiles) + columns - 1) // columns
+    sheet = Image.new("RGB", (tile_w * columns, tile_h * rows), (24, 24, 24))
     draw = ImageDraw.Draw(sheet)
     font = label_font()
 
@@ -255,8 +258,8 @@ def make_sheet(tiles, path: pathlib.Path, scale: int = 2, label_height: int = 26
         if crop is not None:
             tile = tile.crop(crop)
         tile = tile.resize((tile_w, tile_h - label_height), Image.NEAREST)
-        x = (index % 2) * tile_w
-        y = (index // 2) * tile_h
+        x = (index % columns) * tile_w
+        y = (index // columns) * tile_h
         sheet.paste(tile, (x, y + label_height))
         draw.text((x + 8, y + 5), label, fill=(235, 235, 235), font=font)
 
@@ -310,7 +313,7 @@ def make_sweeps(source: np.ndarray, out_dir: pathlib.Path) -> None:
     for item in SWEEPS:
         started = time.perf_counter()
         tiles, changes = [], []
-        for label, overrides in item["variants"]:
+        for label, _slug, overrides in item["variants"]:
             params = replace(SWEEP_BASE, **overrides)
             tile = render_crop(source, params, CROP_BOX)
             tiles.append((label, tile))
@@ -321,6 +324,35 @@ def make_sweeps(source: np.ndarray, out_dir: pathlib.Path) -> None:
         amounts = " / ".join(f"{value:.1f}" for value in changes)
         print(f"  {item['name']:<18} {item['title']}  "
               f"(比較領域の平均変化 {amounts} /255, {elapsed:.1f}s)")
+
+
+def make_full_frames(source: np.ndarray, out_dir: pathlib.Path) -> None:
+    """スイープの各設定を、切り抜きも拡大もせずそのまま書き出す。
+
+    比較シートは細部を見るために2倍に拡大しているので、
+    「実際に使うとどう見えるか」は等倍のこちらで見る。
+    全画面を人数分レンダリングするので時間がかかる(10分ほど)。
+    """
+    full_dir = out_dir / "full"
+    for item in SWEEPS:
+        started = time.perf_counter()
+        for _label, slug, overrides in item["variants"]:
+            params = replace(SWEEP_BASE, **overrides)
+            save(cc.apply(source, params), full_dir / f"{item['name']}-{slug}.jpg")
+        elapsed = time.perf_counter() - started
+        names = " / ".join(slug for _l, slug, _o in item["variants"])
+        print(f"  full/{item['name']:<22} {names}  ({elapsed:.0f}s)")
+
+    # 適用量は最後のブレンドなので、1枚から作れる
+    started = time.perf_counter()
+    full = cc.apply(source, replace(SWEEP_BASE, mix=1.0))
+    for amount in MIX_AMOUNTS:
+        blended = source.copy()
+        blended[..., :3] = source[..., :3] * (1 - amount) + full[..., :3] * amount
+        save(blended, full_dir / f"sweep-mix-{int(amount * 100)}.jpg")
+    print(f"  full/{'sweep-mix':<22} "
+          f"{' / '.join(str(int(a * 100)) for a in MIX_AMOUNTS)}  "
+          f"({time.perf_counter() - started:.0f}s)")
 
 
 def make_mix_sweep(source: np.ndarray, out_dir: pathlib.Path) -> None:
@@ -348,6 +380,22 @@ def make_comparison(out_dir: pathlib.Path) -> None:
     print(f"  comparison     {'/'.join(COMPARISON)} を並べた比較画像")
 
 
+def make_full_comparison(out_dir: pathlib.Path) -> None:
+    """元画像と適用後を、切り抜きも拡大もせず縦に並べる。
+
+    READMEの先頭に置く1枚。実際に使ったときの見え方をそのまま見せたいので、
+    こちらは等倍にしておく(拡大した比較は comparison.jpg のほうにある)。
+    """
+    tiles = [
+        ("before", "00-source"),
+        ("after  01-flow   (intensity 24px)", "01-flow"),
+        ("after  05-soft   (intensity 40px / edge radius 6px)", "05-soft"),
+    ]
+    make_sheet([(label, Image.open(out_dir / f"{name}.jpg")) for label, name in tiles],
+               out_dir / "comparison-full.jpg", scale=1, crop=None, columns=1)
+    print("  comparison-full  元画像と01-flow/05-softを等倍で縦に並べた1枚")
+
+
 def make_step_comparison(source: np.ndarray, out_dir: pathlib.Path) -> None:
     """ステップ数だけを変えた比較画像を作る。"""
     base = PRESETS[0]["params"]
@@ -363,12 +411,14 @@ def make_step_comparison(source: np.ndarray, out_dir: pathlib.Path) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    want_full = "--full" in sys.argv
+    if not args:
         print(__doc__)
         return 1
 
-    source_path = pathlib.Path(sys.argv[1])
-    out_dir = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else pathlib.Path("docs/samples")
+    source_path = pathlib.Path(args[0])
+    out_dir = pathlib.Path(args[1]) if len(args) > 1 else pathlib.Path("docs/samples")
 
     source = load(source_path)
     print(f"入力: {source_path} {source.shape[1]}x{source.shape[0]}")
@@ -388,9 +438,12 @@ def main() -> int:
               f"(平均変化 {diff * 255:.1f}/255, {elapsed:.1f}s)")
 
     make_comparison(out_dir)
+    make_full_comparison(out_dir)
     make_step_comparison(source, out_dir)
     make_sweeps(source, out_dir)
     make_mix_sweep(source, out_dir)
+    if want_full:
+        make_full_frames(source, out_dir)
     return 0
 
 

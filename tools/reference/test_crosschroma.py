@@ -702,11 +702,38 @@ def test_committed_samples_match_the_code():
             " render_samples.py でサンプルを描き直すこと")
 
 
+def test_full_frame_names_do_not_collide():
+    """等倍画像のファイル名が、スイープ内で重複しないこと。"""
+    import render_samples as rs
+
+    names = [f"{item['name']}-{slug}"
+             for item in rs.SWEEPS for _label, slug, _o in item["variants"]]
+    duplicates = {name for name in names if names.count(name) > 1}
+    assert not duplicates, duplicates
+
+
+def test_documentation_links_resolve():
+    """README と docs/ のリンク・画像の参照先が実在すること。
+
+    等倍画像だけで36枚ある。手で書いたリンクは静かに腐るので機械的に見る。
+    """
+    import re
+
+    broken = []
+    for doc in (ROOT / "README.md", ROOT / "docs/parameters.md", ROOT / "docs/internals.md"):
+        for target in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", doc.read_text(encoding="utf-8")):
+            if target.startswith(("http://", "https://", "mailto:")):
+                continue
+            if not (doc.parent / target).exists():
+                broken.append(f"{doc.name} -> {target}")
+    assert not broken, broken
+
+
 def test_sweep_labels_are_ascii():
     """比較シートのラベルは、日本語フォントの無い環境でも豆腐にならないこと。"""
     import render_samples as rs
 
-    labels = [label for item in rs.SWEEPS for label, _ in item["variants"]]
+    labels = [label for item in rs.SWEEPS for label, _slug, _o in item["variants"]]
     for label in labels:
         assert label.isascii(), label
 

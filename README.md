@@ -136,8 +136,8 @@ python3 tools/reference/test_crosschroma.py                                   # 
 python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples  # サンプル生成
 ```
 
-> **C#の実ビルドとYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
-> HLSLはCIでDXCに通してあるが、本番の `fxc` / `ps_4_0` でのコンパイルは未検証。
+> GitHub ActionsのWindowsランナーで、YMM4 Lite v4.56.1.0を参照したC# + HLSLの本番ビルド（.NET 10 / `fxc` / `ps_4_0`）を確認済み。
+> YMM4本体上での画面操作による確認は未実施。
 > アルゴリズムはCPUリファレンス実装に対する38件のテストで検証している。詳細は
 > [docs/internals.md](docs/internals.md#動作確認について)。
 

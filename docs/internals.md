@@ -128,5 +128,5 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
   `ps_6_0` / 厳格モード / 全警告で通している（警告ゼロ）。
   型と構文は保証できるが、**SM4固有の制約までは見ていない**
 - HLSL / C# / Python の3実装が食い違っていないことは、テストで機械的に検証している
-- **C#とHLSLの実ビルド、およびYMM4上での動作確認は、Windows + YMM4本体が必要なため未実施**。
-  最初のビルド時はYMM4のバージョンとの整合（`TargetFramework`、参照DLL）を確認してほしい
+- GitHub ActionsのWindowsランナーで、YMM4 Lite v4.56.1.0を参照したC# + HLSLの本番ビルド（.NET 10 / `fxc` / `ps_4_0`）を確認済み。
+  YMM4本体上での画面操作による動作確認は未実施。

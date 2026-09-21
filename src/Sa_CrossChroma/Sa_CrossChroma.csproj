@@ -1,0 +1,97 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- YMM4 v4.47.0.0以降は.NET10。それ以前のYMM4向けにビルドする場合はnet8.0-windowsに変更する -->
+		<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<UseWPF>true</UseWPF>
+		<AssemblyName>Sa_CrossChroma</AssemblyName>
+		<RootNamespace>Sa_CrossChroma</RootNamespace>
+		<Product>Sa_CrossChroma</Product>
+		<Description>RGBを互いの輪郭で変形させる色収差エフェクト</Description>
+		<Version>1.0.0</Version>
+
+		<!-- Pdb内にソースコードのフルパスを含めない -->
+		<RepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</RepoRoot>
+		<PathMap>$(RepoRoot)=.</PathMap>
+
+		<ShaderSourceFile>$(MSBuildProjectDirectory)\Shaders\CrossChroma.hlsl</ShaderSourceFile>
+		<ShaderOutputDir>$(MSBuildProjectDirectory)\obj\shaders\</ShaderOutputDir>
+		<ShaderOutputFile>$(ShaderOutputDir)CrossChroma.cso</ShaderOutputFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Reference Include="YukkuriMovieMaker.Controls">
+			<HintPath>$(YMM4DirPath)YukkuriMovieMaker.Controls.dll</HintPath>
+		</Reference>
+		<Reference Include="YukkuriMovieMaker.Plugin">
+			<HintPath>$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll</HintPath>
+		</Reference>
+		<Reference Include="SharpGen.Runtime">
+			<HintPath>$(YMM4DirPath)SharpGen.Runtime.dll</HintPath>
+		</Reference>
+		<Reference Include="SharpGen.Runtime.COM">
+			<HintPath>$(YMM4DirPath)SharpGen.Runtime.COM.dll</HintPath>
+		</Reference>
+		<Reference Include="Vortice.Direct2D1">
+			<HintPath>$(YMM4DirPath)Vortice.Direct2D1.dll</HintPath>
+		</Reference>
+		<Reference Include="Vortice.DirectX">
+			<HintPath>$(YMM4DirPath)Vortice.DirectX.dll</HintPath>
+		</Reference>
+		<Reference Include="Vortice.Mathematics">
+			<HintPath>$(YMM4DirPath)Vortice.Mathematics.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<!-- YMM4のフォルダが設定されていないと、参照の解決に失敗して分かりにくいエラーになる -->
+	<Target Name="CheckYMM4DirPath" BeforeTargets="BeforeBuild">
+		<Error Condition="'$(YMM4DirPath)' == ''"
+			   Text="YMM4DirPath が設定されていません。リポジトリ直下の Directory.Build.props.sample を Directory.Build.props としてコピーし、YMM4のインストールフォルダを設定してください。" />
+		<Error Condition="!Exists('$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll')"
+			   Text="$(YMM4DirPath) に YukkuriMovieMaker.Plugin.dll が見つかりません。Directory.Build.props の YMM4DirPath を確認してください。(末尾の \ が必要です)" />
+	</Target>
+
+	<!-- HLSLのコンパイルに使うfxc.exeを探す。Directory.Build.props で FxcPath を直接指定してもよい -->
+	<Target Name="LocateFxc" Condition="'$(FxcPath)' == ''">
+		<ItemGroup>
+			<FxcCandidate Include="$(MSBuildProgramFiles32)\Windows Kits\8.1\bin\x64\fxc.exe" />
+			<FxcCandidate Include="$(MSBuildProgramFiles32)\Windows Kits\10\bin\x64\fxc.exe" />
+			<FxcCandidate Include="$(ProgramFiles)\Windows Kits\10\bin\x64\fxc.exe" />
+			<FxcCandidate Include="$(MSBuildProgramFiles32)\Windows Kits\10\bin\*\x64\fxc.exe" />
+			<FxcCandidate Include="$(ProgramFiles)\Windows Kits\10\bin\*\x64\fxc.exe" />
+		</ItemGroup>
+		<!-- 複数見つかった場合は、一番新しいSDKのものが残る -->
+		<PropertyGroup>
+			<FxcPath Condition="'@(FxcCandidate)' != ''">%(FxcCandidate.FullPath)</FxcPath>
+		</PropertyGroup>
+	</Target>
+
+	<Target Name="CompileCrossChromaShader"
+			DependsOnTargets="LocateFxc"
+			Inputs="$(ShaderSourceFile)"
+			Outputs="$(ShaderOutputFile)">
+		<Error Condition="'$(FxcPath)' == '' or !Exists('$(FxcPath)')"
+			   Text="HLSLのコンパイルに必要な fxc.exe が見つかりません。Windows SDK をインストールするか、Directory.Build.props で FxcPath にフルパスを指定してください。" />
+		<MakeDir Directories="$(ShaderOutputDir)" />
+		<Exec Command="&quot;$(FxcPath)&quot; /nologo /T ps_4_0 /E main /O3 /Fo &quot;$(ShaderOutputFile)&quot; &quot;$(ShaderSourceFile)&quot;" />
+	</Target>
+
+	<!-- 埋め込みは毎回行う必要があるので、コンパイル(差分ビルドあり)とは別のターゲットにする -->
+	<Target Name="EmbedCrossChromaShader"
+			BeforeTargets="BeforeBuild"
+			DependsOnTargets="CompileCrossChromaShader">
+		<ItemGroup>
+			<EmbeddedResource Include="$(ShaderOutputFile)" LogicalName="Sa_CrossChroma.Shaders.CrossChroma.cso" Visible="false" />
+			<FileWrites Include="$(ShaderOutputFile)" />
+		</ItemGroup>
+	</Target>
+
+	<!-- ビルド後にYMM4のプラグインフォルダにdllをコピーする -->
+	<Target Name="CopyToYMM4PluginFolder" AfterTargets="Build" Condition="Exists('$(YMM4DirPath)')">
+		<MakeDir Directories="$(YMM4DirPath)user\plugin\$(AssemblyName)" />
+		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(YMM4DirPath)user\plugin\$(AssemblyName)" />
+	</Target>
+
+</Project>

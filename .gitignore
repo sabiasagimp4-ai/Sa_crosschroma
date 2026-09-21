@@ -1,0 +1,15 @@
+# ビルド成果物
+bin/
+obj/
+
+# 環境ごとの設定
+Directory.Build.props
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Python
+__pycache__/
+*.pyc

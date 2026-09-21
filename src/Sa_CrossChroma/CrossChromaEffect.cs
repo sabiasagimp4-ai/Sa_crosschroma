@@ -34,8 +34,8 @@ public class CrossChromaEffect : VideoEffectBase
 
     [Display(GroupName = "変位", Name = "ステップ数",
         Description = "変位を何回に分けて進めるか。1歩ごとに進んだ先の輪郭を見直すので、増やすほど輪郭に沿った滑らかな曲線を描きます。移動量そのものは変わりません")]
-    [AnimationSlider("F0", "", 1, 16)]
-    public Animation Steps { get; } = new Animation(4, 1, 64);
+    [AnimationSlider("F0", "", 1, 32)]
+    public Animation Steps { get; } = new Animation(8, 1, 64);
 
     [Display(GroupName = "変位", Name = "組み合わせ", Description = "どのチャンネルをどのチャンネルの輪郭で変形させるか")]
     [EnumComboBox]

@@ -33,6 +33,25 @@ OFFSETS = [(-1, -1), (0, -1), (1, -1), (-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1),
 SOBEL_X = [-1.0, 0.0, 1.0, -2.0, 0.0, 2.0, -1.0, 0.0, 1.0]
 SOBEL_Y = [-1.0, -2.0, -1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 1.0]
 
+# 3x3 Sobelは、バイリニア補間を使うと4タップで計算できる。
+# (±0.5, ±0.5) のタップは 2x2 の平均になるので、展開すると
+#   gx = (右上 + 右下) - (左上 + 左下)
+#   gy = (左下 + 右下) - (左上 + 右上)
+# がちょうど Sobel/4 のカーネルと一致する。
+DIAGONALS = [(-0.5, -0.5), (0.5, -0.5), (-0.5, 0.5), (0.5, 0.5)]
+
+# 4タップ版が使える検出半径の上限。
+# 2x2の平均は1テクセル分の幅しか無いので、タップを広げると平滑化が足りずにざらつく。
+# 半径1pxなら、画素の中心で見るかぎり8タップ版と一致する(切り替えても絵は飛ばない)。
+# 歩いている途中の半端な位置では、タップの広がりが±0.5テクセルぶん狭いので
+# 輪郭の効く範囲がわずかに狭くなるが、見た目の差は出ない。
+FAST_GRADIENT_MAX_RADIUS = 1.0
+
+# 勾配がこれ以下だと向きが決まらないので、その画素は1歩も動かない。
+# 動かなければ位置も変わらず、次に取り直す勾配も同じ値になる。
+# HLSL側はそこでループを抜ける(結果は変わらない)。
+GRADIENT_EPSILON = 1e-5
+
 BORDER_CLAMP = "clamp"
 BORDER_TRANSPARENT = "transparent"
 
@@ -45,7 +64,7 @@ class CrossChromaParams:
 
     intensity: float = 20.0          # 変位量 (px)
     angle_deg: float = 90.0          # 勾配ベクトルの回転角 (度)。90で輪郭に沿う
-    steps: int = 4                   # 変位を何歩に分けて進めるか (多いほど滑らか)
+    steps: int = 8                   # 変位を何歩に分けて進めるか (多いほど滑らか)
     iterations: int = 1              # エフェクト全体を繰り返す回数
     edge_radius: float = 1.0         # 輪郭検出の半径 (px)
     edge_gain: float = 1.0           # 輪郭の感度
@@ -145,12 +164,49 @@ def sample_channel(premul, x, y, border, channel: int, fallback: np.ndarray) -> 
     return np.where(valid, select_channel(unpremultiply(c), channel), fallback)
 
 
-def channel_gradient(premul, x, y, border, channel: int, fallback, edge_radius: float):
-    """HLSLのChannelGradient相当。任意の位置で1チャンネル分のSobel勾配を求める。
+def use_fast_gradient(edge_radius: float) -> bool:
+    """4タップ版の勾配を使える半径か。"""
+    return edge_radius <= FAST_GRADIENT_MAX_RADIUS
 
-    mainの勾配計算は1組のタップからR/G/B/輝度をまとめて出すが、
+
+def signal_gradient(premul, x, y, border, edge_radius: float, fallback):
+    """HLSLのSignalGradient相当。R/G/B/輝度の勾配を1組のタップからまとめて求める。"""
+    if use_fast_gradient(edge_radius):
+        a, b, c, d = [
+            sample_signals(premul, x + ox * edge_radius, y + oy * edge_radius, border, fallback)
+            for ox, oy in DIAGONALS
+        ]
+        return (b + d) - (a + c), (c + d) - (a + b)
+
+    shape = np.shape(x) + (4,)
+    gx = np.zeros(shape, dtype=np.float32)
+    gy = np.zeros(shape, dtype=np.float32)
+    for i, (ox, oy) in enumerate(OFFSETS):
+        if SOBEL_X[i] == 0.0 and SOBEL_Y[i] == 0.0:
+            continue
+        tap = sample_signals(
+            premul, x + ox * edge_radius, y + oy * edge_radius, border, fallback)
+        if SOBEL_X[i] != 0.0:
+            gx += SOBEL_X[i] * tap
+        if SOBEL_Y[i] != 0.0:
+            gy += SOBEL_Y[i] * tap
+    return gx * 0.25, gy * 0.25
+
+
+def channel_gradient(premul, x, y, border, channel: int, fallback, edge_radius: float):
+    """HLSLのChannelGradient相当。任意の位置で1チャンネル分の勾配を求める。
+
+    SignalGradientは1組のタップからR/G/B/輝度をまとめて出すが、
     歩きながら勾配を取り直すときは必要な1チャンネルだけで足りる。
     """
+    if use_fast_gradient(edge_radius):
+        a, b, c, d = [
+            sample_channel(premul, x + ox * edge_radius, y + oy * edge_radius,
+                           border, channel, fallback)
+            for ox, oy in DIAGONALS
+        ]
+        return (b + d) - (a + c), (c + d) - (a + b)
+
     gx = np.zeros(np.shape(x), dtype=np.float32)
     gy = np.zeros(np.shape(x), dtype=np.float32)
     for i, (ox, oy) in enumerate(OFFSETS):
@@ -195,24 +251,8 @@ def apply_once(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
     center_signals = signals(center)
 
     # --- 1. 1組のタップからR/G/B/輝度すべての勾配を求める --------------------
-    grad_x = np.zeros((h, w, 4), dtype=np.float32)
-    grad_y = np.zeros((h, w, 4), dtype=np.float32)
-    for i, (ox, oy) in enumerate(OFFSETS):
-        if SOBEL_X[i] == 0.0 and SOBEL_Y[i] == 0.0:
-            continue
-        tap = sample_signals(
-            premul,
-            xs + ox * p.edge_radius,
-            ys + oy * p.edge_radius,
-            p.border,
-            center_signals,
-        )
-        if SOBEL_X[i] != 0.0:
-            grad_x += SOBEL_X[i] * tap
-        if SOBEL_Y[i] != 0.0:
-            grad_y += SOBEL_Y[i] * tap
-    grad_x *= 0.25
-    grad_y *= 0.25
+    grad_x, grad_y = signal_gradient(
+        premul, xs, ys, p.border, p.edge_radius, center_signals)
 
     theta = math.radians(p.angle_deg)
     sin_t = math.sin(theta)
@@ -242,8 +282,10 @@ def apply_once(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
                 gx, gy = channel_gradient(
                     premul, dx, dy, p.border, p.driver[c], driver_value, p.edge_radius)
 
+            # 向きが決まらない画素は移動量が0になる = そこで止まる
             length = np.sqrt(gx * gx + gy * gy)
-            inv_len = np.where(length > 1e-5, 1.0 / np.maximum(length, 1e-5), 0.0)
+            inv_len = np.where(
+                length > GRADIENT_EPSILON, 1.0 / np.maximum(length, GRADIENT_EPSILON), 0.0)
             dir_x = gx * inv_len
             dir_y = gy * inv_len
 
@@ -260,8 +302,9 @@ def apply_once(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
 
         # --- 3. 他チャンネルの明るさでぼかし・膨張・収縮を制御 -----------------
         if p.filter_enabled:
+            # 中心のタップは変位先の値そのものなので、取り直さず value を使う
             taps = np.stack([
-                sample_channel(
+                value if (ox == 0 and oy == 0) else sample_channel(
                     premul,
                     dx + ox * p.filter_radius,
                     dy + oy * p.filter_radius,

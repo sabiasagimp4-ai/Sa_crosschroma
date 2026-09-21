@@ -53,6 +53,29 @@ static const float2 Offsets[9] =
 static const float SobelX[9] = { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
 static const float SobelY[9] = { -1, -2, -1, 0, 0, 0, 1, 2, 1 };
 
+// 3x3 Sobelは、バイリニア補間を使うと4タップで計算できる。
+// (±0.5, ±0.5)のタップは2x2の平均になるので、展開すると
+//   gx = (右上 + 右下) - (左上 + 左下)
+//   gy = (左下 + 右下) - (左上 + 右上)
+// がちょうど Sobel/4 のカーネルと一致する。
+static const float2 Diagonals[4] =
+{
+    float2(-0.5f, -0.5f), float2(0.5f, -0.5f),
+    float2(-0.5f,  0.5f), float2(0.5f,  0.5f)
+};
+
+// 4タップ版が使える検出半径の上限。
+// 2x2の平均は1テクセル分の幅しか無いので、タップを広げると平滑化が足りずにざらつく。
+// 半径1pxなら、画素の中心で見るかぎり8タップ版と一致する(切り替えても絵は飛ばない)。
+// 歩いている途中の半端な位置では、タップの広がりが±0.5テクセルぶん狭いので
+// 輪郭の効く範囲がわずかに狭くなるが、実写でもイラストでも見た目の差は出ない。
+static const float FastGradientMaxRadius = 1.0f;
+
+// 勾配がこれ以下だと向きが決まらないので、その画素は1歩も動かない。
+// 動かなければ位置も変わらず、次に取り直す勾配も同じ値になる。
+// つまり残りのステップは何も起こさないので、丸ごと省ける。平坦な塗りが多い絵ほど効く。
+static const float GradientEpsilon = 1e-5f;
+
 // 0:R 1:G 2:B 3:輝度 4:定数1.0
 float SelectChannel(float4 straight, int index)
 {
@@ -113,11 +136,53 @@ float SampleChannel(float2 uv, int channel, float fallback)
     return SelectChannel(float4(c.rgb / c.a, c.a), channel);
 }
 
-// 任意の位置で、1チャンネル分のSobel勾配を求める。
+// R/G/B/輝度の勾配を1組のタップからまとめて求める。
+void SignalGradient(float2 pos, float2 texel, float4 fallback, out float4 gradX, out float4 gradY)
+{
+    // edgeRadiusは画面全体で同じ値なので、この分岐は画素ごとにばらけない
+    if (edgeRadius <= FastGradientMaxRadius)
+    {
+        float4 a = SampleSignals(pos + Diagonals[0] * edgeRadius * texel, fallback);
+        float4 b = SampleSignals(pos + Diagonals[1] * edgeRadius * texel, fallback);
+        float4 c = SampleSignals(pos + Diagonals[2] * edgeRadius * texel, fallback);
+        float4 d = SampleSignals(pos + Diagonals[3] * edgeRadius * texel, fallback);
+        gradX = (b + d) - (a + c);
+        gradY = (c + d) - (a + b);
+        return;
+    }
+
+    gradX = 0;
+    gradY = 0;
+
+    [unroll]
+    for (int i = 0; i < 9; i++)
+    {
+        if (SobelX[i] == 0.0f && SobelY[i] == 0.0f)
+            continue;
+
+        float4 tap = SampleSignals(pos + Offsets[i] * edgeRadius * texel, fallback);
+        gradX += SobelX[i] * tap;
+        gradY += SobelY[i] * tap;
+    }
+
+    gradX *= 0.25f;
+    gradY *= 0.25f;
+}
+
+// 任意の位置で、1チャンネル分の勾配を求める。
 // 1歩進むごとにその場所の勾配を取り直すために使う。
-// mainの勾配計算とは違い、必要な1チャンネルだけを見る。
+// SignalGradientとは違い、必要な1チャンネルだけを見る。
 float2 ChannelGradient(float2 pos, float2 texel, int channel, float fallback)
 {
+    if (edgeRadius <= FastGradientMaxRadius)
+    {
+        float a = SampleChannel(pos + Diagonals[0] * edgeRadius * texel, channel, fallback);
+        float b = SampleChannel(pos + Diagonals[1] * edgeRadius * texel, channel, fallback);
+        float c = SampleChannel(pos + Diagonals[2] * edgeRadius * texel, channel, fallback);
+        float d = SampleChannel(pos + Diagonals[3] * edgeRadius * texel, channel, fallback);
+        return float2((b + d) - (a + c), (c + d) - (a + b));
+    }
+
     float2 gradient = float2(0, 0);
 
     [unroll]
@@ -162,14 +227,17 @@ float ProcessChannel(
     for (int s = 0; s < steps; s++)
     {
         // 2歩目以降は、進んだ先の勾配を取り直す。
-        // 勾配が消えた場所では amount が0になるので、流れは自然に止まる。
+        // 輪郭が消えた場所では勾配が無くなるので、流れは自然に止まる。
         if (s > 0)
             gradient = ChannelGradient(displaced, texel, driverIndex, driverValue);
 
         float len = sqrt(gradient.x * gradient.x + gradient.y * gradient.y);
-        float invLen = len > 1e-5f ? 1.0f / len : 0.0f;
-        float2 dir = gradient * invLen;
 
+        // 向きが決まらない = もう動かない。残りのステップごと省く。
+        if (len <= GradientEpsilon)
+            break;
+
+        float2 dir = gradient / len;
         float amount = pow(saturate(len * edgeGain), edgeGamma);
 
         // 勾配ベクトルを回転する。90度で輪郭に沿う方向になる。
@@ -184,13 +252,17 @@ float ProcessChannel(
 
     if (filterEnabled > 0.5f)
     {
-        float blurred = 0.0f;
-        float dilated = -1e6f;
-        float eroded = 1e6f;
+        // 中心のタップは変位先の値そのものなので、取り直さず value を使う
+        float blurred = value;
+        float dilated = value;
+        float eroded = value;
 
         [unroll]
         for (int i = 0; i < 9; i++)
         {
+            if (i == 4)
+                continue;
+
             float tap = SampleChannel(
                 displaced + Offsets[i] * filterRadius * texel, channel, centerValue);
             blurred += tap;
@@ -230,20 +302,9 @@ float4 main(
 
     // 1組のタップからR/G/B/輝度すべての勾配を求める
     float4 centerSignals = Signals(center);
-    float4 gradX = 0;
-    float4 gradY = 0;
-    [unroll]
-    for (int i = 0; i < 9; i++)
-    {
-        if (SobelX[i] == 0.0f && SobelY[i] == 0.0f)
-            continue;
-
-        float4 tap = SampleSignals(uv + Offsets[i] * edgeRadius * texel, centerSignals);
-        gradX += SobelX[i] * tap;
-        gradY += SobelY[i] * tap;
-    }
-    gradX *= 0.25f;
-    gradY *= 0.25f;
+    float4 gradX;
+    float4 gradY;
+    SignalGradient(uv, texel, centerSignals, gradX, gradY);
 
     float2 sinCos = float2(sin(angleRad), cos(angleRad));
     int steps = clamp((int)stepCount, 1, 64);

@@ -99,8 +99,11 @@ def test_displacement_follows_driver_channel():
     moved = cc.apply(img, cc.CrossChromaParams(
         intensity=6, angle_deg=0, driver=(cc.CH_G, cc.CH_G, cc.CH_G)))
     diff = np.abs(moved[..., cc.CH_R] - img[..., cc.CH_R])
-    assert diff.max() > 0.05, "Gの輪郭でRが動いていない"
-    # エッジから十分離れた場所は動かない
+
+    # Rは傾斜なので、値の差をそのまま移動距離(px)に直せる
+    slope = 1.0 / (w - 1)
+    assert diff.max() / slope > 1.0, f"Gの輪郭でRが動いていない ({diff.max() / slope:.2f}px)"
+    # 動くのは輪郭をまたぐ2列だけ。エッジから十分離れた場所は動かない
     assert diff[:, :w // 2 - 4].max() < 1e-5
     assert diff[:, w // 2 + 4:].max() < 1e-5
 
@@ -376,6 +379,75 @@ def test_iterations_do_nothing_when_mix_is_zero():
     assert np.allclose(out, img, atol=1e-6), np.abs(out - img).max()
 
 
+def test_fast_gradient_matches_sobel_at_texel_centers():
+    """4タップ版の勾配が、画素の中心では8タップSobelと一致すること。
+
+    検出半径1pxなら (±0.5, ±0.5) のタップがちょうど2x2の平均になり、
+    展開すると Sobel/4 のカーネルそのものになる。
+    ここが崩れると、切り替えのしきい値をまたいだ瞬間に絵が飛ぶ。
+    """
+    size = 40
+    rng = np.random.default_rng(11)
+    img = np.zeros((size, size, 4), dtype=np.float32)
+    img[..., :3] = rng.random((size, size, 3), dtype=np.float32)
+    img[..., 3] = 1.0
+
+    premul = cc.premultiply(img)
+    xs, ys = np.meshgrid(np.arange(size, dtype=np.float32), np.arange(size, dtype=np.float32))
+    center = cc.unpremultiply(cc.sample_premultiplied(premul, xs, ys, cc.BORDER_CLAMP))
+    inner = (slice(4, size - 4), slice(4, size - 4))
+
+    assert cc.use_fast_gradient(1.0), "半径1pxは4タップ版のはず"
+    original = cc.FAST_GRADIENT_MAX_RADIUS
+    try:
+        for channel in (cc.CH_R, cc.CH_G, cc.CH_B, cc.CH_LUMA, cc.CH_ONE):
+            fallback = cc.select_channel(center, channel)
+
+            cc.FAST_GRADIENT_MAX_RADIUS = 1.0
+            fast = cc.channel_gradient(premul, xs, ys, cc.BORDER_CLAMP, channel, fallback, 1.0)
+            cc.FAST_GRADIENT_MAX_RADIUS = 0.0  # 8タップ版を強制する
+            slow = cc.channel_gradient(premul, xs, ys, cc.BORDER_CLAMP, channel, fallback, 1.0)
+
+            for f, sl, axis in zip(fast, slow, "xy"):
+                assert np.allclose(f[inner], sl[inner], atol=1e-5), \
+                    (channel, axis, np.abs(f[inner] - sl[inner]).max())
+    finally:
+        cc.FAST_GRADIENT_MAX_RADIUS = original
+
+
+def test_wide_radius_keeps_the_eight_tap_gradient():
+    """検出半径を広げたら8タップ版に戻ること。
+
+    2x2の平均ではタップを広げたぶんの平滑化が足りず、目に見えてざらつく。
+    """
+    assert not cc.use_fast_gradient(cc.FAST_GRADIENT_MAX_RADIUS + 0.5)
+    assert "FastGradientMaxRadius" in HLSL
+    assert HLSL.count("edgeRadius <= FastGradientMaxRadius") == 2, \
+        "共有の勾配と歩行中の勾配の両方で切り替える"
+    assert "if (len <= GradientEpsilon)" in HLSL, "止まった画素の打ち切りが無い"
+
+
+def test_flow_stops_where_there_is_no_gradient():
+    """勾配が無い場所は1歩も動かないので、残りのステップを打ち切ってよい。
+
+    向きが決まらない画素は移動量が0になり、位置が変わらない以上
+    次に取り直す勾配も同じ値になる。HLSL側はここでループを抜けている。
+    打ち切りが結果を変えないことは、歩数を変えても絵が変わらないことで確かめられる。
+    """
+    flat = solid(24, 24, (0.3, 0.6, 0.9))
+    for steps in (1, 8, 32):
+        out = cc.apply(flat, cc.CrossChromaParams(intensity=40, steps=steps))
+        assert np.allclose(out, flat, atol=1e-6), (steps, np.abs(out - flat).max())
+
+    # 平坦な部分を含む絵でも、歩数を増やした結果がそこだけ変わらないこと
+    img = solid(32, 32, (0.2, 0.2, 0.2))
+    img[:, 16:, cc.CH_G] = 1.0          # 右半分に輪郭
+    flat_area = (slice(None), slice(0, 12))
+    few = cc.apply(img, cc.CrossChromaParams(intensity=20, steps=2))
+    many = cc.apply(img, cc.CrossChromaParams(intensity=20, steps=32))
+    assert np.allclose(few[flat_area], many[flat_area], atol=1e-6)
+
+
 # ---------------------------------------------------------------------------
 # 実装間の整合性 (HLSL / C# / Python)
 # ---------------------------------------------------------------------------
@@ -472,6 +544,21 @@ def test_sobel_and_offsets_match_python():
     assert offsets == [(float(x), float(y)) for x, y in cc.OFFSETS]
 
 
+def test_gradient_constants_match_python():
+    """4タップ版のタップ位置と、切り替え/打ち切りのしきい値が3実装で揃っているか。"""
+    body = re.search(r"static const float2 Diagonals\[4\] =\s*\{(.*?)\};", HLSL, re.S)
+    assert body, "Diagonals が見つからない"
+    diagonals = [(float(x), float(y)) for x, y in
+                 re.findall(r"float2\(\s*(-?[\d.]+)f?,\s*(-?[\d.]+)f?\)", body.group(1))]
+    assert diagonals == [(float(x), float(y)) for x, y in cc.DIAGONALS], diagonals
+
+    for name, value in (("FastGradientMaxRadius", cc.FAST_GRADIENT_MAX_RADIUS),
+                        ("GradientEpsilon", cc.GRADIENT_EPSILON)):
+        found = re.search(rf"static const float {name} = ([\d.e-]+)f;", HLSL)
+        assert found, name
+        assert float(found.group(1)) == value, (name, found.group(1), value)
+
+
 def test_luma_weights_match_python():
     body = re.search(r"LumaWeights = float3\(([^)]*)\)", HLSL)
     assert body
@@ -519,6 +606,12 @@ def test_step_count_is_wired_from_the_ui():
 
     assert re.search(r"StepCount = .*item\.Steps\.GetValue", PROCESSOR_CS), \
         "ステップ数がシェーダーのパラメーターに渡っていない"
+
+    # UIの既定値とPython側の既定値を揃えておく(サンプル画像が実機と食い違わないように)
+    default = re.search(r"public Animation Steps \{ get; \} = new Animation\((\d+),", EFFECT_CS)
+    assert default, "Steps の既定値が読めない"
+    assert int(default.group(1)) == cc.CrossChromaParams().steps, \
+        (default.group(1), cc.CrossChromaParams().steps)
 
 
 def test_iterations_is_handled_outside_the_shader():

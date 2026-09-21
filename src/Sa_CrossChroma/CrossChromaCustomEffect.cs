@@ -208,7 +208,11 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
 
             try
             {
-                drawInformation.SetInputDescription(0, new InputDescription(Filter.MinMagMipLinear, 0));
+                drawInformation.SetInputDescription(0, new InputDescription
+                {
+                    Filter = Filter.MinMagMipLinear,
+                    LevelOfDetailCount = 0,
+                });
             }
             catch (Exception e)
             {

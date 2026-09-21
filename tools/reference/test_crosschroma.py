@@ -713,19 +713,32 @@ def test_full_frame_names_do_not_collide():
 
 
 def test_documentation_links_resolve():
-    """README と docs/ のリンク・画像の参照先が実在すること。
+    """README と docs/ のリンク・画像の参照先が実在すること。見出しへのアンカーも見る。
 
     等倍画像だけで36枚ある。手で書いたリンクは静かに腐るので機械的に見る。
+    アンカーまで見るのは、リンク先の見出しだけ消えても本文はもっともらしく残るため。
     """
     import re
 
+    def anchors(path: pathlib.Path) -> set[str]:
+        """その文書の見出しから、GitHubが作るアンカーを再現する。"""
+        found = set()
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("#"):
+                text = re.sub(r"[^\w\s-]", "", line.lstrip("#").strip().lower())
+                found.add(re.sub(r"\s+", "-", text.strip()))
+        return found
+
     broken = []
     for doc in (ROOT / "README.md", ROOT / "docs/parameters.md", ROOT / "docs/internals.md"):
-        for target in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", doc.read_text(encoding="utf-8")):
-            if target.startswith(("http://", "https://", "mailto:")):
+        for path, anchor in re.findall(r"\]\(([^)#]*)(?:#([^)]*))?\)", doc.read_text(encoding="utf-8")):
+            if path.startswith(("http://", "https://", "mailto:")):
                 continue
-            if not (doc.parent / target).exists():
-                broken.append(f"{doc.name} -> {target}")
+            target = (doc.parent / path) if path else doc
+            if not target.exists():
+                broken.append(f"{doc.name} -> {path}")
+            elif anchor and target.suffix == ".md" and anchor not in anchors(target):
+                broken.append(f"{doc.name} -> {path}#{anchor} (その見出しが無い)")
     assert not broken, broken
 
 

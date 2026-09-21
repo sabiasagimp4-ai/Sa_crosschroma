@@ -84,10 +84,14 @@ tools/reference/
   render_samples.py               サンプル画像の生成
 
 docs/
-  parameters.md                   パラメーターを振った実験結果
+  parameters.md                   パラメーターを振った実験結果・プリセット例
   internals.md                    このファイル
-  samples/                        READMEに貼っているサンプル画像
+  samples/                        READMEとドキュメントに貼っているサンプル画像
     full/                         スイープの各設定を等倍(900x506)で書き出したもの
+
+.github/workflows/
+  test.yml                        CPUリファレンスのテストとシェーダーの構文チェック（Linux）
+  ymm-build.yml                   YMM4を参照した本番ビルドと .ymme の公開（Windows）
 ```
 
 ## 開発
@@ -110,10 +114,22 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
 同じ並び・同じ値になっているかも突き合わせる。
 定数バッファは並び順がずれても無言で壊れるだけなので、ここで機械的に止めている。
 
+## リリース
+
+`main` にpushすると `.github/workflows/ymm-build.yml` が走り、
+WindowsランナーでYMM4 Liteの最新リリースを取ってきてビルドし、
+`Sa_crosschroma.ymme`（DLLをzipして拡張子を変えたもの）をビルド成果物として残す。
+
+コミットメッセージに `[release]` が入っているときは、さらに
+`Sa_CrossChroma.csproj` の `<Version>` から `v1.0.1` のようなタグを作って
+GitHub Releaseとして公開する。バージョンを上げ忘れると、既存のタグに上書きアップロードされる。
+
+参照するYMM4 Liteはバージョン固定していないので、YMM4側の更新でビルドが落ちることはありうる。
+
 ## 動作確認について
 
 - アルゴリズム（変位・ステップ分割・反復・回転・変調・アルファの扱い）は、
-  CPUリファレンス実装に対する36件のテストと、README・[parameters.md](parameters.md) の
+  CPUリファレンス実装に対する38件のテストと、[parameters.md](parameters.md) の
   サンプル画像のレンダリングで確認している
 - 4タップ版の勾配が8タップSobelと一致すること、止まった画素の打ち切りが結果を変えないことも
   テストで押さえている（高速化のつもりで絵を変えてしまわないように）
@@ -123,10 +139,11 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
   アルゴリズムを変えてサンプルを描き直し忘れると、テストが落ちる
 - 以上は `.github/workflows/test.yml` でpush時に自動実行される
 - **シェーダーの構文チェック**も同じワークフローで行っている。
-  本番のビルドはWindowsの `fxc` で `ps_4_0` にコンパイルするが、それはCIでは動かせないので、
   Linuxで動く [DXC](https://github.com/microsoft/DirectXShaderCompiler) に
   `ps_6_0` / 厳格モード / 全警告で通している（警告ゼロ）。
-  型と構文は保証できるが、**SM4固有の制約までは見ていない**
+  Linuxで速く回せる前段のチェックなので、型と構文は保証できるが、
+  **SM4固有の制約までは見ていない**。本番と同じ `fxc` / `ps_4_0` は次のWindowsビルドで通す
 - HLSL / C# / Python の3実装が食い違っていないことは、テストで機械的に検証している
-- GitHub ActionsのWindowsランナーで、YMM4 Lite v4.56.1.0を参照したC# + HLSLの本番ビルド（.NET 10 / `fxc` / `ps_4_0`）を確認済み。
-  YMM4本体上での画面操作による動作確認は未実施。
+- **本番ビルド**は `.github/workflows/ymm-build.yml` が、GitHub ActionsのWindowsランナーで
+  YMM4 Liteを参照して行う。YMM4 Lite v4.56.1.0 を参照したC# + HLSLのビルド
+  （.NET 10 / `fxc` / `ps_4_0`）を確認済み。YMM4本体上での画面操作による動作確認は未実施。

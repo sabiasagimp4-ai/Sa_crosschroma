@@ -21,7 +21,7 @@ RGBチャンネルを別々にずらす一般的な色収差とは異なり、�
 
 | 輪郭に沿って流す | ぼかし・膨張 | 強い変形 |
 |---|---|---|
-| ![](docs/samples/01-flow.jpg) | ![](docs/samples/03-morphology.jpg) | ![](docs/samples/07-full.jpg) |
+| [![](docs/samples/01-flow.jpg)](docs/samples/01-flow.jpg) | [![](docs/samples/03-morphology.jpg)](docs/samples/03-morphology.jpg) | [![](docs/samples/07-full.jpg)](docs/samples/07-full.jpg) |
 
 ## インストール
 
@@ -32,3 +32,8 @@ RGBチャンネルを別々にずらす一般的な色収差とは異なり、�
 `エフェクトを追加` → `加工` → `Sa_crosschroma`
 
 から使用できます。
+
+## もっと詳しく
+
+- [設定ごとの比較と実験結果](docs/parameters.md) — [プリセット例](docs/parameters.md#プリセット例)と、各パラメーターを1項目ずつ振って測った結果
+- [実装の話](docs/internals.md) — 処理の流れ、リポジトリ構成、動作確認について

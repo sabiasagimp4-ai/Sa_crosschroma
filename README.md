@@ -94,15 +94,10 @@ Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方
 
 ## インストール
 
-まだリリースを出していないので、いまは自分でビルドする（下記）。
-ビルドすると `Sa_CrossChroma.dll` が `YMM4フォルダ\user\plugin\Sa_CrossChroma\` に
-自動でコピーされる。手で置いても同じ。
+[Releaseページ](https://github.com/sabiasagimp4-ai/Sa_crosschroma/releases/latest) から `Sa_CrossChroma.ymme` をダウンロードし、YMM4で開いてください。
 
-YMM4を起動して `設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功。
-使うときは、映像アイテムの `エフェクトを追加` → `加工` → `クロスクロマ`。
-
-配布するときは、dllをzipで固めて拡張子を `.ymme` に変えるとワンクリックで入るようになる
-（[YMM4の公式サンプル](https://github.com/manju-summoner/YMM4SamplePlugin) に手順がある）。
+YMM4を起動して `設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功です。
+使うときは、映像アイテムの `エフェクトを追加` → `加工` → `クロスクロマ` から追加します。
 
 ## ビルド
 
@@ -143,7 +138,7 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
 
 > **C#の実ビルドとYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
 > HLSLはCIでDXCに通してあるが、本番の `fxc` / `ps_4_0` でのコンパイルは未検証。
-> アルゴリズムはCPUリファレンス実装に対する36件のテストで検証している。詳細は
+> アルゴリズムはCPUリファレンス実装に対する38件のテストで検証している。詳細は
 > [docs/internals.md](docs/internals.md#動作確認について)。
 
 ## ライセンス

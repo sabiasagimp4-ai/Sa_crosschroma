@@ -24,3 +24,27 @@ jobs:
       # いまのコードで描けるものと一致しているかも、ここで見ている。
       - name: テスト
         run: python3 tools/reference/test_crosschroma.py
+
+  shader:
+    name: シェーダーの構文チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 本番のビルドはWindowsのfxcでps_4_0にコンパイルするが、
+      # それはここでは動かせない。DXCで型と構文だけ通して、
+      # 「そもそもコンパイルできないHLSL」がmainに入るのを防ぐ。
+      # SM4固有の制約までは見られない点に注意。
+      - name: DXCを用意する
+        env:
+          DXC_URL: https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2407/linux_dxc_2024_07_31.x86_64.tar.gz
+        run: |
+          curl -sSL -o dxc.tar.gz "$DXC_URL"
+          mkdir -p dxc && tar xzf dxc.tar.gz -C dxc
+          chmod +x dxc/bin/dxc
+
+      - name: CrossChroma.hlsl をコンパイルする
+        run: |
+          LD_LIBRARY_PATH=dxc/lib dxc/bin/dxc \
+            -T ps_6_0 -E main -Ges -Wall -O3 \
+            src/Sa_CrossChroma/Shaders/CrossChroma.hlsl -Fo /dev/null

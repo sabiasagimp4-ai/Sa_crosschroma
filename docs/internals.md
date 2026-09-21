@@ -121,6 +121,11 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
 - `docs/samples/` に置いてある画像が、いまのコードで描けるものと一致しているかも見ている。
   アルゴリズムを変えてサンプルを描き直し忘れると、テストが落ちる
 - 以上は `.github/workflows/test.yml` でpush時に自動実行される
+- **シェーダーの構文チェック**も同じワークフローで行っている。
+  本番のビルドはWindowsの `fxc` で `ps_4_0` にコンパイルするが、それはCIでは動かせないので、
+  Linuxで動く [DXC](https://github.com/microsoft/DirectXShaderCompiler) に
+  `ps_6_0` / 厳格モード / 全警告で通している（警告ゼロ）。
+  型と構文は保証できるが、**SM4固有の制約までは見ていない**
 - HLSL / C# / Python の3実装が食い違っていないことは、テストで機械的に検証している
 - **C#とHLSLの実ビルド、およびYMM4上での動作確認は、Windows + YMM4本体が必要なため未実施**。
   最初のビルド時はYMM4のバージョンとの整合（`TargetFramework`、参照DLL）を確認してほしい

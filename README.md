@@ -1,5 +1,7 @@
 # Sa_CrossChroma
 
+[![test](https://github.com/sabiasagimp4-ai/Sa_crosschroma/actions/workflows/test.yml/badge.svg)](https://github.com/sabiasagimp4-ai/Sa_crosschroma/actions/workflows/test.yml)
+
 RGBを分離し、各チャンネルを **別チャンネルの輪郭** で変形してから再合成する、
 ゆっくりMovieMaker4（YMM4）用の映像エフェクトプラグイン。
 
@@ -88,13 +90,15 @@ Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方
 
 ## インストール
 
-1. [Releases](../../releases) から `.ymme` ファイルをダウンロードする（または自分でビルドする）
-2. `.ymme` ファイルをダブルクリックする
-3. YMM4を起動し、`設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功
+まだリリースを出していないので、いまは自分でビルドする（下記）。
+ビルドすると `Sa_CrossChroma.dll` が `YMM4フォルダ\user\plugin\Sa_CrossChroma\` に
+自動でコピーされる。手で置いても同じ。
 
-手動で入れる場合は、`Sa_CrossChroma.dll` を `YMM4フォルダ\user\plugin\Sa_CrossChroma\` に置く。
-
+YMM4を起動して `設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功。
 使うときは、映像アイテムの `エフェクトを追加` → `加工` → `クロスクロマ`。
+
+配布するときは、dllをzipで固めて拡張子を `.ymme` に変えるとワンクリックで入るようになる
+（[YMM4の公式サンプル](https://github.com/manju-summoner/YMM4SamplePlugin) に手順がある）。
 
 ## ビルド
 
@@ -133,7 +137,8 @@ python3 tools/reference/test_crosschroma.py                                   # 
 python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples  # サンプル生成
 ```
 
-> **C#とHLSLの実ビルド、およびYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
+> **C#の実ビルドとYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
+> HLSLはCIでDXCに通してあるが、本番の `fxc` / `ps_4_0` でのコンパイルは未検証。
 > アルゴリズムはCPUリファレンス実装に対する36件のテストで検証している。詳細は
 > [docs/internals.md](docs/internals.md#動作確認について)。
 

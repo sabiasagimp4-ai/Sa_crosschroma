@@ -2,7 +2,9 @@
 // RGBを分離し、各チャンネルを「別チャンネルの輪郭」で変形して再合成するピクセルシェーダー。
 //
 // 1. 1組の3x3タップからR/G/B/輝度すべてのSobel勾配を求める
-// 2. チャンネルごとに、割り当てられたドライバーチャンネルの勾配を回転させた方向へ変位させる
+// 2. チャンネルごとに、割り当てられたドライバーチャンネルの勾配を回転させた方向へ変位させる。
+//    このとき stepCount 回に分けて少しずつ進み、1歩ごとに進んだ先で勾配を取り直す。
+//    移動の合計量は変えずに経路だけが直線から曲線になるので、輪郭に沿った流れが滑らかになる。
 // 3. 変位先で、別チャンネルの明るさに応じてぼかし / 膨張 / 収縮をかける
 // 4. 元画像とブレンドして出力する
 //
@@ -27,7 +29,7 @@ cbuffer constants : register(b0)
     float blendAmount   : packoffset(c2.x); // 元画像とのブレンド
     float modInvert     : packoffset(c2.y); // 変調チャンネルの反転
     float filterEnabled : packoffset(c2.z); // ぼかし・膨張・収縮を使うか
-    float reserved0     : packoffset(c2.w);
+    float stepCount     : packoffset(c2.w); // 変位を何回に分けて進めるか
 
     float driverR       : packoffset(c3.x); // Rを変形させるチャンネル
     float driverG       : packoffset(c3.y);
@@ -111,6 +113,26 @@ float SampleChannel(float2 uv, int channel, float fallback)
     return SelectChannel(float4(c.rgb / c.a, c.a), channel);
 }
 
+// 任意の位置で、1チャンネル分のSobel勾配を求める。
+// 1歩進むごとにその場所の勾配を取り直すために使う。
+// mainの勾配計算とは違い、必要な1チャンネルだけを見る。
+float2 ChannelGradient(float2 pos, float2 texel, int channel, float fallback)
+{
+    float2 gradient = float2(0, 0);
+
+    [unroll]
+    for (int i = 0; i < 9; i++)
+    {
+        if (SobelX[i] == 0.0f && SobelY[i] == 0.0f)
+            continue;
+
+        float tap = SampleChannel(pos + Offsets[i] * edgeRadius * texel, channel, fallback);
+        gradient += float2(SobelX[i], SobelY[i]) * tap;
+    }
+
+    return gradient * 0.25f;
+}
+
 // 1チャンネル分の処理
 float ProcessChannel(
     float2 uv,
@@ -119,27 +141,45 @@ float ProcessChannel(
     float4 gradX,
     float4 gradY,
     float2 sinCos,
+    int steps,
     int channel,
     int driverIndex,
     int modIndex)
 {
     float centerValue = SelectChannel(center, channel);
+    float driverValue = SelectChannel(center, driverIndex);
 
-    float gx = SelectGradient(gradX, driverIndex);
-    float gy = SelectGradient(gradY, driverIndex);
+    // 合計の移動量は変えず、steps回に分けて進む
+    float stepScale = intensity / steps;
 
-    float len = sqrt(gx * gx + gy * gy);
-    float invLen = len > 1e-5f ? 1.0f / len : 0.0f;
-    float2 dir = float2(gx, gy) * invLen;
+    float2 displaced = uv;
+    // 1歩目の勾配はmainで計算済みのものを使い回す
+    float2 gradient = float2(
+        SelectGradient(gradX, driverIndex),
+        SelectGradient(gradY, driverIndex));
 
-    float amount = pow(saturate(len * edgeGain), edgeGamma);
+    [loop]
+    for (int s = 0; s < steps; s++)
+    {
+        // 2歩目以降は、進んだ先の勾配を取り直す。
+        // 勾配が消えた場所では amount が0になるので、流れは自然に止まる。
+        if (s > 0)
+            gradient = ChannelGradient(displaced, texel, driverIndex, driverValue);
 
-    // 勾配ベクトルを回転する。90度で輪郭に沿う方向になる。
-    float2 rotated = float2(
-        dir.x * sinCos.y - dir.y * sinCos.x,
-        dir.x * sinCos.x + dir.y * sinCos.y);
+        float len = sqrt(gradient.x * gradient.x + gradient.y * gradient.y);
+        float invLen = len > 1e-5f ? 1.0f / len : 0.0f;
+        float2 dir = gradient * invLen;
 
-    float2 displaced = uv + rotated * (amount * intensity) * texel;
+        float amount = pow(saturate(len * edgeGain), edgeGamma);
+
+        // 勾配ベクトルを回転する。90度で輪郭に沿う方向になる。
+        float2 rotated = float2(
+            dir.x * sinCos.y - dir.y * sinCos.x,
+            dir.x * sinCos.x + dir.y * sinCos.y);
+
+        displaced += rotated * (amount * stepScale) * texel;
+    }
+
     float value = SampleChannel(displaced, channel, centerValue);
 
     if (filterEnabled > 0.5f)
@@ -206,11 +246,12 @@ float4 main(
     gradY *= 0.25f;
 
     float2 sinCos = float2(sin(angleRad), cos(angleRad));
+    int steps = clamp((int)stepCount, 1, 64);
 
     float3 processed;
-    processed.r = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, 0, (int)driverR, (int)modR);
-    processed.g = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, 1, (int)driverG, (int)modG);
-    processed.b = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, 2, (int)driverB, (int)modB);
+    processed.r = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, steps, 0, (int)driverR, (int)modR);
+    processed.g = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, steps, 1, (int)driverG, (int)modG);
+    processed.b = ProcessChannel(uv, texel, center, gradX, gradY, sinCos, steps, 2, (int)driverB, (int)modB);
 
     float3 rgb = saturate(lerp(center.rgb, processed, blendAmount));
 

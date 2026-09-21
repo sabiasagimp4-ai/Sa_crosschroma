@@ -11,6 +11,7 @@ from __future__ import annotations
 import pathlib
 import sys
 import time
+from dataclasses import replace
 
 import numpy as np
 from PIL import Image
@@ -30,9 +31,9 @@ PRESETS = [
     preset(
         "01-flow",
         "勾配を90°回転させ、輪郭に沿って色を流す",
-        "強度24px / 角度90° / 順回転 / 感度150%",
+        "強度24px / 角度90° / ステップ数8 / 順回転 / 感度150%",
         cc.CrossChromaParams(
-            intensity=24, angle_deg=90, edge_gain=1.5,
+            intensity=24, angle_deg=90, edge_gain=1.5, steps=8,
             driver=FORWARD, modulation=cc.remaining_channels(FORWARD)),
     ),
     preset(
@@ -87,7 +88,18 @@ PRESETS = [
             blur_strength=0.6, morph_strength=-0.6, filter_radius=4.0,
             driver=BACKWARD, modulation=cc.remaining_channels(BACKWARD)),
     ),
+    preset(
+        "08-iterate",
+        "エフェクト全体を繰り返して、変形の上にさらに変形を重ねる",
+        "強度10px / 角度90° / ステップ数4 / 反復回数3 / 感度150%",
+        cc.CrossChromaParams(
+            intensity=10, angle_deg=90, edge_gain=1.5, steps=4, iterations=3,
+            driver=FORWARD, modulation=cc.remaining_channels(FORWARD)),
+    ),
 ]
+
+# ステップ数だけを変えた比較。01-flow と同じ設定から歩数だけ動かす。
+STEP_COUNTS = [1, 2, 4, 16]
 
 
 def load(path: pathlib.Path) -> np.ndarray:
@@ -107,26 +119,47 @@ CROP_BOX = (380, 280, 680, 480)
 COMPARISON = ["00-source", "02-displace", "01-flow", "05-soft"]
 
 
-def make_comparison(out_dir: pathlib.Path, scale: int = 2, label_height: int = 22) -> None:
-    """サンプルの一部を拡大して並べた比較画像を作る。"""
+def make_sheet(tiles, path: pathlib.Path, scale: int = 2, label_height: int = 22) -> None:
+    """(ラベル, PIL画像) を CROP_BOX で切り出し、2列に拡大して並べる。"""
     from PIL import ImageDraw
 
     left, top, right, bottom = CROP_BOX
     tile_w = (right - left) * scale
     tile_h = (bottom - top) * scale + label_height
-    sheet = Image.new("RGB", (tile_w * 2, tile_h * 2), (24, 24, 24))
+    rows = (len(tiles) + 1) // 2
+    sheet = Image.new("RGB", (tile_w * 2, tile_h * rows), (24, 24, 24))
     draw = ImageDraw.Draw(sheet)
 
-    for index, name in enumerate(COMPARISON):
-        tile = Image.open(out_dir / f"{name}.jpg").convert("RGB")
-        tile = tile.crop(CROP_BOX).resize((tile_w, tile_h - label_height), Image.NEAREST)
+    for index, (label, image) in enumerate(tiles):
+        tile = image.convert("RGB").crop(CROP_BOX)
+        tile = tile.resize((tile_w, tile_h - label_height), Image.NEAREST)
         x = (index % 2) * tile_w
         y = (index // 2) * tile_h
         sheet.paste(tile, (x, y + label_height))
-        draw.text((x + 6, y + 6), name, fill=(235, 235, 235))
+        draw.text((x + 6, y + 6), label, fill=(235, 235, 235))
 
-    sheet.save(out_dir / "comparison.jpg", quality=92, subsampling=0)
-    print(f"  comparison     {'/'.join(COMPARISON)} を {scale}倍で並べた比較画像")
+    sheet.save(path, quality=92, subsampling=0)
+
+
+def make_comparison(out_dir: pathlib.Path) -> None:
+    """プリセット同士を並べた比較画像を作る。"""
+    tiles = [(name, Image.open(out_dir / f"{name}.jpg")) for name in COMPARISON]
+    make_sheet(tiles, out_dir / "comparison.jpg")
+    print(f"  comparison     {'/'.join(COMPARISON)} を並べた比較画像")
+
+
+def make_step_comparison(source: np.ndarray, out_dir: pathlib.Path) -> None:
+    """ステップ数だけを変えた比較画像を作る。"""
+    base = PRESETS[0]["params"]
+    tiles = []
+    for steps in STEP_COUNTS:
+        params = replace(base, steps=steps)
+        result = cc.apply(source, params)
+        rgb = np.clip(result[..., :3], 0.0, 1.0) * 255.0
+        tiles.append((f"steps = {steps}", Image.fromarray(rgb.round().astype(np.uint8))))
+
+    make_sheet(tiles, out_dir / "steps.jpg")
+    print(f"  steps          ステップ数 {'/'.join(map(str, STEP_COUNTS))} を並べた比較画像")
 
 
 def main() -> int:
@@ -155,6 +188,7 @@ def main() -> int:
               f"(平均変化 {diff * 255:.1f}/255, {elapsed:.1f}s)")
 
     make_comparison(out_dir)
+    make_step_comparison(source, out_dir)
     return 0
 
 

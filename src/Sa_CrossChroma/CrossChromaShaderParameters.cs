@@ -40,6 +40,9 @@ internal record struct CrossChromaShaderParameters
     /// <summary>ぼかし・膨張・収縮を行うなら1</summary>
     public float FilterEnabled { get; init; }
 
+    /// <summary>変位を何歩に分けて進めるか(1以上)</summary>
+    public float StepCount { get; init; }
+
     /// <summary>Rを変形させるチャンネル</summary>
     public float DriverR { get; init; }
 

@@ -17,6 +17,9 @@ public class CrossChromaEffect : VideoEffectBase
 {
     public override string Label => "クロスクロマ";
 
+    /// <summary>反復回数の上限。増やすほどパス数がそのまま増えるので、常識的な範囲で止めておく。</summary>
+    public const int MaxIterations = 8;
+
     // ------------------------------------------------------------------
     // 変位
     // ------------------------------------------------------------------
@@ -28,6 +31,11 @@ public class CrossChromaEffect : VideoEffectBase
     [Display(GroupName = "変位", Name = "角度", Description = "0°で輪郭を横切る方向、90°で輪郭に沿う方向に色が流れます")]
     [AnimationSlider("F1", "°", -180, 180)]
     public Animation Angle { get; } = new Animation(90, -36000, 36000);
+
+    [Display(GroupName = "変位", Name = "ステップ数",
+        Description = "変位を何回に分けて進めるか。1歩ごとに進んだ先の輪郭を見直すので、増やすほど輪郭に沿った滑らかな曲線を描きます。移動量そのものは変わりません")]
+    [AnimationSlider("F0", "", 1, 16)]
+    public Animation Steps { get; } = new Animation(4, 1, 64);
 
     [Display(GroupName = "変位", Name = "組み合わせ", Description = "どのチャンネルをどのチャンネルの輪郭で変形させるか")]
     [EnumComboBox]
@@ -113,7 +121,15 @@ public class CrossChromaEffect : VideoEffectBase
     // 仕上げ
     // ------------------------------------------------------------------
 
-    [Display(GroupName = "仕上げ", Name = "適用量", Description = "元の映像とのブレンド量")]
+    [Display(GroupName = "仕上げ", Name = "反復回数",
+        Description = "エフェクト全体を繰り返す回数。変形した結果をもう一度変形するので、効果が積み重なって崩れていきます。ステップ数と違って移動量も増えます")]
+    [TextBoxSlider("F0", "回", 1, MaxIterations)]
+    [DefaultValue(1)]
+    [Range(1, MaxIterations)]
+    public int Iterations { get => iterations; set => Set(ref iterations, value); }
+    int iterations = 1;
+
+    [Display(GroupName = "仕上げ", Name = "適用量", Description = "元の映像とのブレンド量。反復回数が2以上のときは1回ごとに適用されます")]
     [AnimationSlider("F0", "%", 0, 100)]
     public Animation Mix { get; } = new Animation(100, 0, 100);
 
@@ -137,5 +153,5 @@ public class CrossChromaEffect : VideoEffectBase
         => new CrossChromaProcessor(devices, this);
 
     protected override IEnumerable<IAnimatable> GetAnimatables() =>
-        [Intensity, Angle, EdgeRadius, EdgeGain, Blur, Morphology, FilterRadius, Mix];
+        [Intensity, Angle, Steps, EdgeRadius, EdgeGain, Blur, Morphology, FilterRadius, Mix];
 }

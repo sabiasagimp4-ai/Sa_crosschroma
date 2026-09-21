@@ -34,6 +34,7 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
         SetValue((int)EffectImpl.Properties.BlendAmount, p.BlendAmount);
         SetValue((int)EffectImpl.Properties.ModInvert, p.ModInvert);
         SetValue((int)EffectImpl.Properties.FilterEnabled, p.FilterEnabled);
+        SetValue((int)EffectImpl.Properties.StepCount, p.StepCount);
         SetValue((int)EffectImpl.Properties.DriverR, p.DriverR);
         SetValue((int)EffectImpl.Properties.DriverG, p.DriverG);
         SetValue((int)EffectImpl.Properties.DriverB, p.DriverB);
@@ -58,6 +59,7 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
             constantBuffer.EdgeGamma = 1;
             constantBuffer.FilterRadius = 2;
             constantBuffer.BlendAmount = 1;
+            constantBuffer.StepCount = 1;
         }
 
         [CustomEffectProperty(PropertyType.Float, (int)Properties.Intensity)]
@@ -135,6 +137,13 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
         {
             get => constantBuffer.FilterEnabled;
             set { constantBuffer.FilterEnabled = value; UpdateConstants(); }
+        }
+
+        [CustomEffectProperty(PropertyType.Float, (int)Properties.StepCount)]
+        public float StepCount
+        {
+            get => constantBuffer.StepCount;
+            set { constantBuffer.StepCount = value; UpdateConstants(); }
         }
 
         [CustomEffectProperty(PropertyType.Float, (int)Properties.DriverR)]
@@ -272,7 +281,7 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
             public float BlendAmount;
             public float ModInvert;
             public float FilterEnabled;
-            public float Reserved0;
+            public float StepCount;
 
             public float DriverR;
             public float DriverG;
@@ -298,6 +307,7 @@ internal class CrossChromaCustomEffect : D2D1CustomShaderEffectBase
             BlendAmount,
             ModInvert,
             FilterEnabled,
+            StepCount,
             DriverR,
             DriverG,
             DriverB,

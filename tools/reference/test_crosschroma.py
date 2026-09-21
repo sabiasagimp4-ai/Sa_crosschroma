@@ -23,6 +23,8 @@ HLSL = (ROOT / "src/Sa_CrossChroma/Shaders/CrossChroma.hlsl").read_text(encoding
 CUSTOM_EFFECT_CS = (ROOT / "src/Sa_CrossChroma/CrossChromaCustomEffect.cs").read_text(encoding="utf-8")
 PARAMETERS_CS = (ROOT / "src/Sa_CrossChroma/CrossChromaShaderParameters.cs").read_text(encoding="utf-8")
 ROUTING_CS = (ROOT / "src/Sa_CrossChroma/ChannelRouting.cs").read_text(encoding="utf-8")
+EFFECT_CS = (ROOT / "src/Sa_CrossChroma/CrossChromaEffect.cs").read_text(encoding="utf-8")
+PROCESSOR_CS = (ROOT / "src/Sa_CrossChroma/CrossChromaProcessor.cs").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +44,18 @@ def vertical_edge(channel, w=32, h=32, low=0.0, high=1.0):
     img[..., channel] = low
     img[:, w // 2:, channel] = high
     return img
+
+
+def radial_ramp(channels, size=64, scale=32.0):
+    """中心からの距離をそのまま値にした画像。勾配は放射方向、等値線は同心円になる。"""
+    center = (size - 1) / 2.0
+    ys, xs = np.mgrid[0:size, 0:size].astype(np.float32)
+    radius = np.sqrt((xs - center) ** 2 + (ys - center) ** 2)
+
+    img = solid(size, size, (0.0, 0.0, 0.0))
+    for channel in channels:
+        img[..., channel] = np.clip(radius / scale, 0.0, 1.0)
+    return img, radius
 
 
 # ---------------------------------------------------------------------------
@@ -218,13 +232,148 @@ def test_step_edge_moves_by_edge_width():
     w = h = 32
     img = vertical_edge(cc.CH_R, w, h)
     out = cc.apply(img, cc.CrossChromaParams(
-        intensity=8, angle_deg=0, driver=(cc.CH_R,) * 3, edge_radius=1.0))
+        intensity=8, angle_deg=0, steps=1, driver=(cc.CH_R,) * 3, edge_radius=1.0))
 
     row = out[h // 2, :, cc.CH_R]
     src = img[h // 2, :, cc.CH_R]
     # 検出半径1pxなので、エッジの1px手前だけが明るい側から色を拾う
     assert src[w // 2 - 1] == 0.0 and row[w // 2 - 1] == 1.0
     assert row[w // 2 - 2] == 0.0
+
+
+def test_steps_do_not_change_total_displacement():
+    """勾配が一定な場所では、歩数を変えても結果は変わらない。
+
+    ステップ数は「どう進むか」を細かくするだけで、移動量そのものは
+    強度で決まる、という取り決めを固定しておく。
+    """
+    size = 64
+    slope = 1.0 / (size - 1)
+    ramp = np.linspace(0.0, 1.0, size, dtype=np.float32)
+
+    img = solid(size, size, (0.0, 0.0, 0.0))
+    img[..., cc.CH_G] = ramp  # 変形の元。傾斜なのでどこでも勾配が同じ
+    img[..., cc.CH_R] = ramp  # 移動量を読み取る対象
+
+    p = dict(intensity=6, angle_deg=0, driver=(cc.CH_G,) * 3,
+             edge_gain=1.0 / (2.0 * slope), edge_radius=1.0)
+    one = cc.apply(img, cc.CrossChromaParams(steps=1, **p))
+    many = cc.apply(img, cc.CrossChromaParams(steps=12, **p))
+
+    # 画像の端は外側のクランプで勾配が変わるので内側だけ見る
+    inner = (slice(10, size - 12), slice(10, size - 12))
+    assert np.allclose(one[inner], many[inner], atol=1e-5), \
+        np.abs(one[inner] - many[inner]).max()
+
+
+def test_steps_follow_the_contour():
+    """角度90°では、歩数を増やすほど等値線に沿って進む。
+
+    放射状の傾斜だと等値線は同心円になる。接線方向へ一気に飛ぶと円の外へ
+    ふくらんでしまうが、細かく刻んで勾配を取り直せば円に沿って回れる。
+    Rにも同じ傾斜を入れてあるので、円からのずれがそのままRの変化になる。
+    """
+    size, scale = 64, 32.0
+    img, radius = radial_ramp((cc.CH_R, cc.CH_G), size, scale)
+
+    # 勾配の長さは 2/scale。感度でちょうど1.0に正規化する
+    p = dict(intensity=12, angle_deg=90, driver=(cc.CH_G,) * 3,
+             edge_gain=scale / 2.0, edge_radius=1.0)
+    ring = (radius > 12) & (radius < 20)
+
+    def drift(steps):
+        out = cc.apply(img, cc.CrossChromaParams(steps=steps, **p))
+        return float(np.abs(out[..., cc.CH_R] - img[..., cc.CH_R])[ring].mean() * scale)
+
+    coarse = drift(1)
+    fine = drift(16)
+    assert coarse > 2.0, coarse                     # 1歩だと円からはっきり外れる
+    assert fine < coarse * 0.35, (coarse, fine)     # 刻めば円に沿う
+
+
+def test_channel_gradient_matches_shared_gradient():
+    """歩きながら取り直す勾配が、1歩目に使う共有の勾配と一致すること。
+
+    1歩目だけmainで計算済みの勾配を使い回しているので、
+    ここがずれると歩数を変えた瞬間に絵が飛ぶ。
+    """
+    size = 20
+    rng = np.random.default_rng(7)
+    img = np.zeros((size, size, 4), dtype=np.float32)
+    img[..., :3] = rng.random((size, size, 3), dtype=np.float32)
+    img[..., 3] = 1.0
+
+    premul = cc.premultiply(img)
+    xs, ys = np.meshgrid(np.arange(size, dtype=np.float32), np.arange(size, dtype=np.float32))
+    center = cc.unpremultiply(cc.sample_premultiplied(premul, xs, ys, cc.BORDER_CLAMP))
+    center_signals = cc.signals(center)
+
+    grad_x = np.zeros((size, size, 4), dtype=np.float32)
+    grad_y = np.zeros((size, size, 4), dtype=np.float32)
+    for i, (ox, oy) in enumerate(cc.OFFSETS):
+        tap = cc.sample_signals(premul, xs + ox, ys + oy, cc.BORDER_CLAMP, center_signals)
+        grad_x += cc.SOBEL_X[i] * tap
+        grad_y += cc.SOBEL_Y[i] * tap
+    grad_x *= 0.25
+    grad_y *= 0.25
+
+    for channel in (cc.CH_R, cc.CH_G, cc.CH_B, cc.CH_LUMA, cc.CH_ONE):
+        gx, gy = cc.channel_gradient(
+            premul, xs, ys, cc.BORDER_CLAMP, channel,
+            cc.select_channel(center, channel), 1.0)
+        assert np.allclose(gx, cc.select_gradient(grad_x, channel), atol=1e-6), channel
+        assert np.allclose(gy, cc.select_gradient(grad_y, channel), atol=1e-6), channel
+
+
+def test_iterations_accumulate_displacement():
+    """反復するとそのぶん変位が積み重なる。
+
+    どこでも勾配が一定な傾斜なら1回につき同じ量だけずれるので、
+    n回でちょうどn倍になるはず。ステップ数(合計が変わらない)との違いがここ。
+    """
+    size = 64
+    slope = 1.0 / (size - 1)
+    ramp = np.linspace(0.0, 1.0, size, dtype=np.float32)
+
+    img = solid(size, size, (0.0, 0.0, 0.0))
+    img[..., cc.CH_G] = ramp  # 変形の元。1回通しても傾斜のままなので勾配が変わらない
+    img[..., cc.CH_R] = ramp  # 移動量を読み取る対象
+
+    intensity = 3.0
+    p = dict(intensity=intensity, angle_deg=0, steps=1, driver=(cc.CH_G,) * 3,
+             edge_gain=1.0 / (2.0 * slope), edge_radius=1.0)
+    row, col = size // 2, size // 2
+
+    for iterations in (1, 2, 4):
+        out = cc.apply(img, cc.CrossChromaParams(iterations=iterations, **p))
+        moved = out[row, col, cc.CH_R] - img[row, col, cc.CH_R]
+        expected = iterations * intensity * slope
+        assert abs(moved - expected) < 1e-4, (iterations, moved, expected)
+
+
+def test_iterations_feed_the_result_back():
+    """n回の反復は、1回通した結果をさらにn-1回通したものと一致する。"""
+    rng = np.random.default_rng(3)
+    img = np.zeros((32, 32, 4), dtype=np.float32)
+    img[..., :3] = rng.random((32, 32, 3), dtype=np.float32)
+    img[..., 3] = 1.0
+
+    p = dict(intensity=4, edge_gain=2.0, driver=cc.ROUTING["forward"])
+    once = cc.apply(img, cc.CrossChromaParams(iterations=1, **p))
+    thrice = cc.apply(img, cc.CrossChromaParams(iterations=3, **p))
+    again = cc.apply(once, cc.CrossChromaParams(iterations=2, **p))
+
+    assert np.allclose(again, thrice, atol=1e-6), np.abs(again - thrice).max()
+    # 1回目ですでに絵は動いている(この比較が無意味にならないことの確認)
+    assert np.abs(once[..., :3] - img[..., :3]).mean() > 0.01
+
+
+def test_iterations_do_nothing_when_mix_is_zero():
+    """適用量は1回ごとに効くので、0なら何回繰り返しても素通し。"""
+    img = vertical_edge(cc.CH_G)
+    img[..., cc.CH_R] = np.linspace(0, 1, img.shape[1], dtype=np.float32)
+    out = cc.apply(img, cc.CrossChromaParams(intensity=8, iterations=6, mix=0.0))
+    assert np.allclose(out, img, atol=1e-6), np.abs(out - img).max()
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +506,32 @@ def test_remaining_channel_rule():
     assert cc.remaining_channels(cc.ROUTING["backward"]) == (cc.CH_G, cc.CH_B, cc.CH_R)
     # 3つ目が決まらない場合は輝度
     assert cc.remaining_channels((cc.CH_R, cc.CH_G, cc.CH_B)) == (cc.CH_LUMA,) * 3
+
+
+def test_step_count_is_wired_from_the_ui():
+    """UIのステップ数がシェーダーまで届いているか。"""
+    assert re.search(r"public Animation Steps \{ get; \} = new Animation\(", EFFECT_CS)
+
+    animatables = re.search(r"GetAnimatables\(\) =>\s*\[([^\]]*)\]", EFFECT_CS)
+    assert animatables, "GetAnimatables が見つからない"
+    names = [n.strip() for n in animatables.group(1).split(",")]
+    assert "Steps" in names, names
+
+    assert re.search(r"StepCount = .*item\.Steps\.GetValue", PROCESSOR_CS), \
+        "ステップ数がシェーダーのパラメーターに渡っていない"
+
+
+def test_iterations_is_handled_outside_the_shader():
+    """反復はシェーダーではなく、エフェクトの多段接続で行う。"""
+    assert not any("iteration" in name.lower() for name, _, _ in _hlsl_constant_buffer_fields())
+    assert "Iterations" not in PARAMETERS_CS
+
+    # 上限はエフェクト側の定数で一元管理する
+    assert re.search(r"public const int MaxIterations = \d+;", EFFECT_CS)
+    assert "CrossChromaEffect.MaxIterations" in PROCESSOR_CS
+
+    # 前の段の出力を次の段の入力に繋いでいる
+    assert "effectOutputs[i + 1]" in PROCESSOR_CS
 
 
 # ---------------------------------------------------------------------------

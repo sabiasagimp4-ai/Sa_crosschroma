@@ -45,6 +45,8 @@ class CrossChromaParams:
 
     intensity: float = 20.0          # 変位量 (px)
     angle_deg: float = 90.0          # 勾配ベクトルの回転角 (度)。90で輪郭に沿う
+    steps: int = 4                   # 変位を何歩に分けて進めるか (多いほど滑らか)
+    iterations: int = 1              # エフェクト全体を繰り返す回数
     edge_radius: float = 1.0         # 輪郭検出の半径 (px)
     edge_gain: float = 1.0           # 輪郭の感度
     edge_gamma: float = 1.0          # 輪郭のガンマ
@@ -143,12 +145,44 @@ def sample_channel(premul, x, y, border, channel: int, fallback: np.ndarray) -> 
     return np.where(valid, select_channel(unpremultiply(c), channel), fallback)
 
 
+def channel_gradient(premul, x, y, border, channel: int, fallback, edge_radius: float):
+    """HLSLのChannelGradient相当。任意の位置で1チャンネル分のSobel勾配を求める。
+
+    mainの勾配計算は1組のタップからR/G/B/輝度をまとめて出すが、
+    歩きながら勾配を取り直すときは必要な1チャンネルだけで足りる。
+    """
+    gx = np.zeros(np.shape(x), dtype=np.float32)
+    gy = np.zeros(np.shape(x), dtype=np.float32)
+    for i, (ox, oy) in enumerate(OFFSETS):
+        if SOBEL_X[i] == 0.0 and SOBEL_Y[i] == 0.0:
+            continue
+        tap = sample_channel(
+            premul, x + ox * edge_radius, y + oy * edge_radius, border, channel, fallback)
+        if SOBEL_X[i] != 0.0:
+            gx += SOBEL_X[i] * tap
+        if SOBEL_Y[i] != 0.0:
+            gy += SOBEL_Y[i] * tap
+    return gx * 0.25, gy * 0.25
+
+
 # ---------------------------------------------------------------------------
 # 本体 (CrossChroma.hlsl の main / ProcessChannel と対応)
 # ---------------------------------------------------------------------------
 
 def apply(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
-    """非乗算RGBA float32 (H,W,4) を受け取り、同じ形式で返す。"""
+    """非乗算RGBA float32 (H,W,4) を受け取り、同じ形式で返す。
+
+    iterations を増やすと、変形した結果をもう一度入力に戻して繰り返す。
+    C#側では同じエフェクトを数珠つなぎにすることで同じことをしている。
+    """
+    out = np.ascontiguousarray(src_straight, dtype=np.float32)
+    for _ in range(max(int(p.iterations), 1)):
+        out = apply_once(out, p)
+    return out
+
+
+def apply_once(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
+    """1パスぶん。CrossChroma.hlsl の main 1回に対応する。"""
     src_straight = np.ascontiguousarray(src_straight, dtype=np.float32)
     h, w = src_straight.shape[:2]
     premul = premultiply(src_straight)
@@ -186,26 +220,41 @@ def apply(src_straight: np.ndarray, p: CrossChromaParams) -> np.ndarray:
 
     processed = np.zeros((h, w, 3), dtype=np.float32)
 
+    steps = int(np.clip(int(p.steps), 1, 64))
+    # 合計の移動量は変えず、steps回に分けて進む
+    step_scale = p.intensity / steps
+
     # --- 2. チャンネルごとに、別チャンネルの輪郭で変位させる -------------------
     for c in (0, 1, 2):
         center_value = select_channel(center, c)
+        driver_value = select_channel(center, p.driver[c])
 
+        dx = xs.copy()
+        dy = ys.copy()
+        # 1歩目の勾配は上で計算済みのものを使い回す
         gx = select_gradient(grad_x, p.driver[c])
         gy = select_gradient(grad_y, p.driver[c])
 
-        length = np.sqrt(gx * gx + gy * gy)
-        inv_len = np.where(length > 1e-5, 1.0 / np.maximum(length, 1e-5), 0.0)
-        dir_x = gx * inv_len
-        dir_y = gy * inv_len
+        for s in range(steps):
+            # 2歩目以降は、進んだ先の勾配を取り直す。
+            # 勾配が消えた場所では amount が0になるので、流れは自然に止まる。
+            if s > 0:
+                gx, gy = channel_gradient(
+                    premul, dx, dy, p.border, p.driver[c], driver_value, p.edge_radius)
 
-        amount = np.clip(length * p.edge_gain, 0.0, 1.0) ** p.edge_gamma
+            length = np.sqrt(gx * gx + gy * gy)
+            inv_len = np.where(length > 1e-5, 1.0 / np.maximum(length, 1e-5), 0.0)
+            dir_x = gx * inv_len
+            dir_y = gy * inv_len
 
-        # 勾配ベクトルを回転する。90度で輪郭に沿う方向になる。
-        rot_x = dir_x * cos_t - dir_y * sin_t
-        rot_y = dir_x * sin_t + dir_y * cos_t
+            amount = np.clip(length * p.edge_gain, 0.0, 1.0) ** p.edge_gamma
 
-        dx = xs + rot_x * (amount * p.intensity)
-        dy = ys + rot_y * (amount * p.intensity)
+            # 勾配ベクトルを回転する。90度で輪郭に沿う方向になる。
+            rot_x = dir_x * cos_t - dir_y * sin_t
+            rot_y = dir_x * sin_t + dir_y * cos_t
+
+            dx = dx + rot_x * (amount * step_scale)
+            dy = dy + rot_y * (amount * step_scale)
 
         value = sample_channel(premul, dx, dy, p.border, c, center_value)
 

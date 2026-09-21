@@ -1,7 +1,7 @@
 # パラメーターを振ってみた結果
 
-各パラメーターを1項目ずつ振って測った結果。使いかたの目安は
-[README](../README.md#効かせかたの目安) に要約がある。
+各パラメーターを1項目ずつ振って測った結果。急いでいるときは[結論](#結論)だけ見れば足りる。
+設定の組み合わせの例は[プリセット例](#プリセット例)にある。
 
 > **並べた比較画像は、机のフレーム周り 300x200px を切り出して2倍に拡大したもの。**
 > 細部を見るためにそうしているので、ザラつきは実際より目立って見える。
@@ -258,3 +258,21 @@ python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/sample
   「感度」と「ガンマ」で調整できないか先に試すとよい
 - 反復回数はパス数が増えるが、**同じ合計移動量で比べるならステップ数に振るのと大差ない**
   （上の反復回数の項を参照）。ただしD2Dのパス自体のコストは上の式に入っていない
+
+## プリセット例
+
+設定の組み合わせの例。**すべて等倍**（900x506、切り抜きなし）。
+上の各項目が「1つのパラメーターだけを動かした結果」なのに対して、こちらは組み合わせた見本。
+
+| | |
+|---|---|
+| **元画像**<br>[![](samples/00-source.jpg)](samples/00-source.jpg) | **01-flow** — 輪郭に沿って色を流す<br>`強度24px / 角度90° / ステップ数8`<br>[![](samples/01-flow.jpg)](samples/01-flow.jpg) |
+| **02-displace** — 輪郭を横切る向きに変位<br>`強度16px / 角度0°`<br>[![](samples/02-displace.jpg)](samples/02-displace.jpg) | **03-morphology** — 他チャンネルの明るさで膨張<br>`強度10px / 膨張100% / 半径4px`<br>[![](samples/03-morphology.jpg)](samples/03-morphology.jpg) |
+| **04-blur** — 他チャンネルの明るさでぼかす<br>`強度12px / ぼかし100% / 半径3px`<br>[![](samples/04-blur.jpg)](samples/04-blur.jpg) | **05-soft** — 広い濃淡に反応させる<br>`強度40px / 検出半径6px / ガンマ0.6`<br>[![](samples/05-soft.jpg)](samples/05-soft.jpg) |
+| **06-subtle** — 実用的な控えめの設定<br>`強度6px / 感度200% / 適用量60%`<br>[![](samples/06-subtle.jpg)](samples/06-subtle.jpg) | **07-full** — 変位・ぼかし・収縮を全部使う<br>`強度28px / 角度120° / 逆回転 / 収縮-60%`<br>[![](samples/07-full.jpg)](samples/07-full.jpg) |
+| **08-iterate** — 全体を繰り返して変形を重ねる<br>`強度10px / ステップ数4 / 反復回数3`<br>[![](samples/08-iterate.jpg)](samples/08-iterate.jpg) | |
+
+縦に並べた等倍の before / after は [comparison-full.jpg](samples/comparison-full.jpg)
+（元画像 / 01-flow / 05-soft）。
+細部だけ見たいときは [comparison.jpg](samples/comparison.jpg)（机のフレーム周りを2倍）と
+[steps.jpg](samples/steps.jpg)（ステップ数の違いを2倍）。

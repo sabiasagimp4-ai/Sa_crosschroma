@@ -14,6 +14,15 @@ RGBチャンネルを別々にずらす一般的な色収差とは異なり、�
 - 強度、検出半径、感度、ガンマ、適用量を調整
 - 各パラメータをアニメーション可能
 
+
+## ギャラリー
+
+代表的な設定例です。
+
+| 輪郭に沿って流す | ぼかし・膨張 | 強い変形 |
+|---|---|---|
+| ![](docs/samples/01-flow.jpg) | ![](docs/samples/03-morphology.jpg) | ![](docs/samples/07-full.jpg) |
+
 ## インストール
 
 [Releaseページ](https://github.com/sabiasagimp4-ai/Sa_crosschroma/releases/latest)から `Sa_CrossChroma.ymme` をダウンロードし、YMM4で開いてください。

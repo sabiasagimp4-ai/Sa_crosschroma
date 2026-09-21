@@ -664,6 +664,44 @@ def test_sweep_crop_matches_a_full_render():
             (overrides, float(np.abs(quantized - cropped).max()))
 
 
+def test_committed_samples_match_the_code():
+    """docs/samples/ の画像が、いまのコードで描けるものと一致すること。
+
+    アルゴリズムを変えたのにサンプルを描き直し忘れると、READMEだけが
+    古い挙動を見せ続けることになる(実際に一度やらかした)。
+    全画面を描くと遅いので、比較用の一角だけを描いて突き合わせる。
+    """
+    import io
+
+    import render_samples as rs
+    from PIL import Image
+
+    out_dir = ROOT / "docs/samples"
+    source_path = out_dir / "00-source.jpg"
+    if not source_path.exists():
+        raise AssertionError(f"{source_path} が無い")
+
+    source = rs.load(source_path)
+
+    # 歩く/フィルタする/多段にする、を1つずつ踏むプリセットを見る
+    for name in ("01-flow", "03-morphology", "08-iterate"):
+        params = next(x["params"] for x in rs.PRESETS if x["name"] == name)
+
+        committed = np.asarray(
+            Image.open(out_dir / f"{name}.jpg").convert("RGB").crop(rs.VERIFY_BOX), dtype=np.float32)
+
+        # 書き出し済みの画像と同じ土俵に乗せるため、こちらもJPEGを通す
+        buffer = io.BytesIO()
+        rs.render_crop(source, params, rs.VERIFY_BOX).save(buffer, "JPEG", **rs.JPEG_OPTIONS)
+        fresh = np.asarray(Image.open(buffer).convert("RGB"), dtype=np.float32)
+
+        mean = float(np.abs(committed - fresh).mean())
+        # 一致していれば0.03程度。アルゴリズムがずれると2以上になる
+        assert mean < 0.3, (
+            f"{name}.jpg がいまのコードと合っていない (平均 {mean:.2f}/255)。"
+            " render_samples.py でサンプルを描き直すこと")
+
+
 def test_sweep_labels_are_ascii():
     """比較シートのラベルは、日本語フォントの無い環境でも豆腐にならないこと。"""
     import render_samples as rs

@@ -154,7 +154,7 @@ internal class CrossChromaProcessor : IVideoEffectProcessor
         var morphology = (float)(item.Morphology.GetValue(frame, length, fps) / 100d);
         var filterRadius = (float)item.FilterRadius.GetValue(frame, length, fps);
 
-        // ぼかしも膨張・収縮も使わないなら、9タップ分のサンプリングを丸ごと省く
+        // ぼかしも膨張・収縮も使わないなら、フィルタのサンプリング(24タップ)を丸ごと省く
         var useFilter = filterRadius > 0 && (blur > 0 || morphology != 0);
 
         return new CrossChromaShaderParameters

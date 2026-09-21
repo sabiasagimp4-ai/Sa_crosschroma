@@ -192,15 +192,24 @@ def load(path: pathlib.Path) -> np.ndarray:
     return np.asarray(image, dtype=np.float32) / 255.0
 
 
+# 色のにじみを見せる画像なので、クロマサブサンプリングは切っておく。
+JPEG_OPTIONS = dict(quality=92, subsampling=0)
+
+
 def save(array: np.ndarray, path: pathlib.Path) -> None:
     rgb = np.clip(array[..., :3], 0.0, 1.0) * 255.0
     image = Image.fromarray(rgb.round().astype(np.uint8), mode="RGB")
     path.parent.mkdir(parents=True, exist_ok=True)
-    image.save(path, quality=92, subsampling=0)
+    image.save(path, **JPEG_OPTIONS)
 
 
 # 細い金属フレームが多く、チャンネルごとの違いが見やすい場所
 CROP_BOX = (380, 280, 680, 480)
+
+# 書き出し済みJPEGと描き直した結果を突き合わせるための範囲。
+# JPEGは8x8ブロック単位で圧縮するので、境界を8の倍数に揃えておくと
+# 「全体を書き出してから切る」と「切ってから書き出す」が一致する。
+VERIFY_BOX = (384, 280, 680, 480)
 COMPARISON = ["00-source", "02-displace", "01-flow", "05-soft"]
 
 
@@ -251,7 +260,7 @@ def make_sheet(tiles, path: pathlib.Path, scale: int = 2, label_height: int = 26
         sheet.paste(tile, (x, y + label_height))
         draw.text((x + 8, y + 5), label, fill=(235, 235, 235), font=font)
 
-    sheet.save(path, quality=92, subsampling=0)
+    sheet.save(path, **JPEG_OPTIONS)
 
 
 def dependency_margin(p: cc.CrossChromaParams) -> int:

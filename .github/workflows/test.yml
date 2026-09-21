@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  reference:
+    name: CPUリファレンス実装のテスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 依存を入れる
+        run: pip install --disable-pip-version-check numpy pillow
+
+      # HLSL / C# / Python の整合性と、docs/samples/ が
+      # いまのコードで描けるものと一致しているかも、ここで見ている。
+      - name: テスト
+        run: python3 tools/reference/test_crosschroma.py

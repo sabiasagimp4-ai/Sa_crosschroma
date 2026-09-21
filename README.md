@@ -1,5 +1,7 @@
 # Sa_CrossChroma
 
+[![test](https://github.com/sabiasagimp4-ai/Sa_crosschroma/actions/workflows/test.yml/badge.svg)](https://github.com/sabiasagimp4-ai/Sa_crosschroma/actions/workflows/test.yml)
+
 RGBを分離し、各チャンネルを **別チャンネルの輪郭** で変形してから再合成する、
 ゆっくりMovieMaker4（YMM4）用の映像エフェクトプラグイン。
 
@@ -135,7 +137,8 @@ python3 tools/reference/test_crosschroma.py                                   # 
 python3 tools/reference/render_samples.py docs/samples/00-source.jpg docs/samples  # サンプル生成
 ```
 
-> **C#とHLSLの実ビルド、およびYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
+> **C#の実ビルドとYMM4上での動作確認は未実施**（Windows + YMM4本体が必要なため）。
+> HLSLはCIでDXCに通してあるが、本番の `fxc` / `ps_4_0` でのコンパイルは未検証。
 > アルゴリズムはCPUリファレンス実装に対する36件のテストで検証している。詳細は
 > [docs/internals.md](docs/internals.md#動作確認について)。
 

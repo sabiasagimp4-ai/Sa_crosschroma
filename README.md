@@ -88,13 +88,15 @@ Rの動き方はGの輪郭が決め、Gの動き方はBが決め、Bの動き方
 
 ## インストール
 
-1. [Releases](../../releases) から `.ymme` ファイルをダウンロードする（または自分でビルドする）
-2. `.ymme` ファイルをダブルクリックする
-3. YMM4を起動し、`設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功
+まだリリースを出していないので、いまは自分でビルドする（下記）。
+ビルドすると `Sa_CrossChroma.dll` が `YMM4フォルダ\user\plugin\Sa_CrossChroma\` に
+自動でコピーされる。手で置いても同じ。
 
-手動で入れる場合は、`Sa_CrossChroma.dll` を `YMM4フォルダ\user\plugin\Sa_CrossChroma\` に置く。
-
+YMM4を起動して `設定` → `プラグイン` → `プラグイン一覧` に `Sa_CrossChroma` が出ていれば成功。
 使うときは、映像アイテムの `エフェクトを追加` → `加工` → `クロスクロマ`。
+
+配布するときは、dllをzipで固めて拡張子を `.ymme` に変えるとワンクリックで入るようになる
+（[YMM4の公式サンプル](https://github.com/manju-summoner/YMM4SamplePlugin) に手順がある）。
 
 ## ビルド
 
